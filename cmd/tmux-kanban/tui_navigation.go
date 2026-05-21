@@ -1,0 +1,140 @@
+package main
+
+import (
+	"fmt"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"tmux-kanban/internal/config"
+	"tmux-kanban/internal/tmuxscan"
+)
+
+func (m *model) handleMouse(msg tea.MouseMsg, now time.Time) {
+	direction := wheelDirection(msg)
+	if direction == 0 {
+		return
+	}
+
+	if direction == m.lastWheelDirection && now.Sub(m.lastWheelAt) < wheelThrottleInterval {
+		return
+	}
+
+	m.lastWheelAt = now
+	m.lastWheelDirection = direction
+	if m.viewMode == viewReview {
+		m.moveReviewCursor(direction)
+	} else {
+		m.moveCursor(direction)
+	}
+}
+
+func wheelDirection(msg tea.MouseMsg) int {
+	switch msg.Type {
+	case tea.MouseWheelUp:
+		return -1
+	case tea.MouseWheelDown:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func (m *model) moveCursor(delta int) {
+	rows := m.rows()
+	if len(rows) == 0 {
+		m.cursor = 0
+		return
+	}
+
+	next := m.cursor + delta
+	if next < 0 {
+		next = 0
+	}
+	if next >= len(rows) {
+		next = len(rows) - 1
+	}
+	m.cursor = next
+}
+
+func (m *model) toggleSelected() {
+	rows := m.rows()
+	if len(rows) == 0 || m.cursor >= len(rows) {
+		return
+	}
+
+	selected := rows[m.cursor]
+	switch selected.kind {
+	case rowHost, rowSession, rowWindow:
+		m.expanded[selected.key] = !m.expanded[selected.key]
+	}
+}
+
+type selectedSessionRef struct {
+	Key          string
+	HostIndex    int
+	SessionIndex int
+	Host         config.Host
+	Session      tmuxscan.Session
+}
+
+func (m model) selectedSessionRef() (selectedSessionRef, bool) {
+	selected, ok := m.selectedRow()
+	if !ok {
+		return selectedSessionRef{}, false
+	}
+	return m.sessionRefForRow(selected)
+}
+
+func (m model) sessionRefForRow(selected row) (selectedSessionRef, bool) {
+	if selected.hostIndex < 0 || selected.hostIndex >= len(m.hosts) {
+		return selectedSessionRef{}, false
+	}
+	switch selected.kind {
+	case rowSession, rowWindow, rowPane:
+		sessions := m.hosts[selected.hostIndex].snapshot.Sessions
+		session, ok := sessionAt(sessions, selected.sessionIndex)
+		if !ok {
+			return selectedSessionRef{}, false
+		}
+		host := m.hosts[selected.hostIndex].host
+		return selectedSessionRef{
+			Key:          sessionStatusKey(host, session),
+			HostIndex:    selected.hostIndex,
+			SessionIndex: selected.sessionIndex,
+			Host:         host,
+			Session:      session,
+		}, true
+	default:
+		return selectedSessionRef{}, false
+	}
+}
+
+func (m *model) cycleSelectedSessionStatus() {
+	ref, ok := m.selectedSessionRef()
+	if !ok {
+		m.status = "select a session, window, or pane to cycle status"
+		return
+	}
+
+	if m.statuses == nil {
+		m.statuses = map[string]sessionStatus{}
+	}
+
+	next := nextSessionStatus(m.sessionStatusForKey(ref.Key))
+	m.statuses[ref.Key] = next
+	delete(m.statusStreaks, ref.Key)
+	if next != sessionNeedReview {
+		delete(m.reviewSkipped, ref.Key)
+		delete(m.reviewTargets, ref.Key)
+	}
+	m.clearHermesAdvice(ref.Key)
+	m.status = fmt.Sprintf("%s/%s -> %s", ref.Host.Name, ref.Session.Name, statusLabel(next))
+	m.addAgentActivity(agentActivity{
+		Source:  agentActivitySession,
+		Agent:   "session",
+		Target:  displayHostName(ref.Host) + "/" + ref.Session.Name,
+		State:   statusLabel(next),
+		Message: "manual status cycle",
+	})
+}

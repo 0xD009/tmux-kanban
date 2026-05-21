@@ -1,0 +1,32 @@
+.DS_Store
+/bin/
+/dist/
+/tmp/
+/tmux-kanban
+/config.yaml
+
+# Local editor and agent workspace state
+.idea/
+.vscode/
+.codex/
+
+# Local secrets and machine-specific environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*_secret*
+*_secrets*
+*credentials*
+
+# Runtime state, logs, and generated diagnostics
+*.log
+*.out
+*.trace
+coverage.out
+/snapshots/
+/.local/
+/.state/

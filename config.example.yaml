@@ -1,0 +1,74 @@
+hosts:
+  - name: local
+    local: true
+  - name: gpu-a
+    ssh: user@gpu-a
+
+kanban:
+  columns:
+    - Idle
+    - Working
+    - Need Review
+
+main_agent:
+  enabled: true
+  host: local
+  session: tmux-kanban-main
+  # Main is shown separately as a conductor with tmux-kanban-review skill + JSON CLI abilities.
+  agent: codex # codex or claude-code
+  command: codex
+  args: []
+
+agent_mesh:
+  enabled: false
+  shared_short_agent: true
+  default_agent: codex
+  # Skill files constrain Codex/Claude role backends.
+  skill_root: mesh-skills
+  memory_root: ""
+  policies:
+    - name: review-permission
+      role: review-permission
+      scope: session
+      backend: codex # builtin, codex, claude-code, hermes, or command
+      skill: review-permission
+      agent: codex
+      enabled: true
+    - name: review-advice
+      role: review-advice
+      scope: session
+      backend: codex
+      skill: review-advice
+      agent: codex
+      enabled: true
+    - name: dispatcher
+      role: dispatcher
+      scope: session
+      backend: codex
+      skill: dispatcher
+      agent: codex
+      enabled: true
+    - name: session-link
+      role: session-link
+      scope: host
+      backend: codex
+      skill: session-link
+      agent: codex
+      enabled: true
+  mail:
+    enabled: true
+    dir: ""
+
+hermes:
+  enabled: false
+  auto_review: false
+  command: hermes
+  args:
+    - --oneshot
+  timeout_seconds: 120
+
+notification:
+  qq_enabled: false
+
+debug:
+  snapshot_dir: ""
