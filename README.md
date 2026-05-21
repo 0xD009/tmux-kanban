@@ -1,139 +1,62 @@
 # tmux-kanban
 
-Local TUI for tracking kanban cards, reviewing agent panes, and coordinating work across local or remote tmux sessions.
+Terminal kanban for supervising long-running coding agents across local and remote tmux sessions.
 
-## Capabilities
+[中文文档](README.zh-CN.md)
 
-- Scan local and SSH tmux hosts, group sessions/windows/panes into a kanban-style cockpit, and attach directly to the selected target.
-- Detect `codex` and `claude-code` panes, infer whether they are idle, working, waiting for review, or done, and keep a focused review queue.
-- Capture live pane previews, relay choices or text back into agent panes, and save diagnostic snapshots for debugging stale state or misclassification.
-- Expose the same review, capture, choice, send, notification, and snapshot operations as JSON CLI commands so other agents can drive the cockpit.
-- Provide a Main Room coordination surface plus an optional agent-mesh scaffold for review advice, dispatching, scoped memory, and a-mail style handoffs.
+![tmux-kanban terminal cockpit showing session board, tmux explorer, live preview, and agent activity](docs/images/tmux-kanban-showcase.png)
 
-## Local Config
+tmux-kanban is a local TUI for tracking coding-agent sessions, reviewing permission prompts, and coordinating work across multiple SSH machines. It is built mainly for Codex and Claude Code. Because I currently use Codex more heavily, the Codex path is likely better exercised, but Claude Code is a first-class target in the design.
 
-Keep personal hostnames, SSH targets, notification settings, local Hermes paths, and snapshot directories in `config.yaml`. The repo only tracks `config.example.yaml`; copy it and edit locally:
+The project solves a very specific pain point for me: I do persistent work on several SSH servers. On each machine, tmux is already a good primitive for keeping work alive. The bad part is constantly switching between machines and tmux sessions just to notice that an agent is waiting, press Enter, pick an option, or send a short message. I often forget one session, which slows the whole system down.
 
-```bash
-cp config.example.yaml config.yaml
-```
+From an efficiency point of view, that felt like human-bound vibe coding: the agents were waiting for me. My goal is agent-bound vibe coding instead: most of the time, I should be waiting for agents.
 
-Hosts can be remote SSH targets or local tmux:
+Codex and Claude Code both have remote-control features, but in my own setup those connections have not been stable enough, especially Codex remote control during the days that pushed me to build this. tmux-kanban is my terminal-native answer to that: it does not rely on the Codex or Claude Code SDKs. It uses tmux itself as the control plane.
 
-```yaml
-hosts:
-  - name: local
-    local: true
-  - name: gpu-a
-    ssh: user@gpu-a
-```
+### How It Works
 
-## Controls
+The core implementation is intentionally pragmatic:
 
-- `r` scans configured hosts for tmux sessions.
-- `:` opens the command prompt.
-- `j` / `k` or arrow keys move the cursor.
-- `enter` / `space` expands or collapses a host, session, or window.
-- `s` cycles the selected session through `idle`, `working`, `need review`, and `done`.
-- Selecting a session, window, or pane opens a live `tmux capture-pane` preview under it. The active preview refreshes about once per second while session/status scanning stays on the slower polling interval.
-- `a` attaches to the selected session, window, or pane target.
-- Select a `codex` or `claude-code` session, window, or pane and press `x` to relay selection keys to its first agent pane.
-- Select a `codex` or `claude-code` session, window, or pane and press `m` to send its first agent pane a message.
-- `g` opens Main Room, a chat-style coordination channel. It is local by default; when `hermes.enabled` is on, room messages ask Hermes for a reply.
-- `tab` / `v` switches between the tree view and focused review queue.
-- In review view, `h` asks Hermes for advice on the current `need review` item, `1-9` chooses, `s` skips, and `u` restores skipped items. Choosing or skipping advances to the next queued item while refreshes keep the current item stable.
-- `d` saves a diagnostic snapshot for debugging disappearing sessions or state transitions.
-- `q` quits.
+- It scans local and SSH tmux hosts, then groups sessions, windows, and panes into a kanban-style cockpit.
+- It detects Codex and Claude Code panes mostly through terminal text pattern matching.
+- It infers whether a session is idle, working, waiting for review, or done.
+- It polls panes with `tmux capture-pane` for live previews. The latency is visible, but acceptable for my workflow.
+- It can attach directly to a target with `a`, send a quick message with `m`, and choose visible options with `1-9`.
+- It can relay keys and messages back into an agent pane without opening the tmux session manually.
 
-## TUI Commands
+I have not tested the full matrix of tmux window-splitting workflows yet, because I rarely use split windows myself. The common session/window/pane paths are the ones I use and care about today.
 
-Press `:` to run runtime commands inside the TUI:
+### Capabilities
 
-```text
-:help
-:refresh
-:view tree
-:view review
-:view main
-:main start
-:main hide
-:mesh status
-:mesh on
-:mesh default claude
-:mesh shared off
-:mesh skill-root ./mesh-skills
-:mesh policy review-advice backend claude
-:mesh policy review-advice agent claude
-:mesh policy review-advice skill review-advice
-:mesh policy review-advice off
-:mesh mail dir ~/.local/state/tmux-kanban/mail
-:set qq on
-:set qq off
-:set hermes on
-:set hermes.auto_review on
-:set mesh.mail on
-:set mesh.memory_root ~/.local/state/tmux-kanban/memory
-:status idle
-:status working
-:status need-review
-:notify optional message for Hermes
-:snapshot
-```
+- Local and remote tmux host scanning.
+- Session board with `idle`, `working`, `need review`, and `done` states.
+- Focused review queue for Codex and Claude Code prompts.
+- Live terminal preview for selected sessions, windows, and panes.
+- Direct attach, quick message sending, key relay, and numbered choice selection.
+- JSON CLI commands for review listing, capture, choose, send, notify, and snapshot.
+- Optional Hermes integration for advice, mobile workflows, and social-media notification hooks.
+- Diagnostic snapshots designed for agent-assisted debugging.
+- Experimental agent-mesh scaffolding for memory, review advice, and future task dispatch.
 
-These commands affect the running TUI process only. They do not rewrite `config.yaml`. `:notify` uses the same QQ notification path as the CLI and still requires `notification.qq_enabled: true`.
+### Hermes And The CLI
 
-## Main Room
+tmux-kanban also includes a JSON CLI because I want to work remotely from a phone through Hermes and a small skill layer. In that direction, tmux-kanban gives Hermes core abilities such as listing review items, capturing panes, sending messages, choosing options, and saving snapshots.
 
-Main Room is a chat-style coordination surface for user messages, review events, Hermes replies, and session activity. It currently has no built-in main-session agent backend: pressing `g` or running `:main start` only opens the room. When `hermes.enabled` is on, Main Room messages ask Hermes directly and show its reply in the room. When Hermes is off, messages stay local until a harness backend is wired in.
+Hermes also gives abilities back to tmux-kanban:
 
-The future harness should speak a small structured protocol and can use the JSON CLI abilities below to inspect the review queue, capture panes, send messages, make choices, and save snapshots. It can also call `capabilities` to discover this contract in machine-readable JSON.
+- In review mode, `h` asks Hermes for advice on the current item.
+- With the right settings, tmux-kanban can ask Hermes automatically when a session enters review.
+- Hermes replies can be accepted automatically when they are explicit enough, such as `CHOOSE <number>` or `SKIP`.
+- If a problem needs me personally, Hermes can notify me through a social channel such as QQ.
 
-```yaml
-main_agent:
-  enabled: false
-  host: local
-  session: tmux-kanban-main
-  agent: codex
-  command: codex
-  args: []
-```
+Strictly speaking, the current "review" flow is closer to permission approval than code review. It would be easy to delegate approval to Codex or Claude Code too, but I have not wired that up yet, partly because those agents cannot easily ask me for help through my social channels.
 
-Runtime commands do not rewrite `config.yaml`.
+### Memory And Future Dispatch
 
-## Agent Mesh
+The current system is still under my direct control. It can approve choices and coordinate sessions, but I am not yet letting agents dispatch arbitrary work to other agents. That change would not be very large technically, but I do not want these projects to run outside my control, and I also do not want to burn enough tokens to keep a fleet of agents working day and night.
 
-`agent_mesh` is the scaffold for per-session and cross-session helper agents. It is disabled by default while the runtime is still being wired up, but the model is in place:
-
-- `review-permission` can own approval policy for a session.
-- `review-advice` can summarize what it thinks humans should do.
-- `dispatcher` can turn advice into a message or task for another agent.
-- `session-link` can coordinate windows in one session or sessions on one host.
-- `memory_root` is reserved for a hierarchical memory tree: global -> host -> session -> window -> pane.
-- `mail` is the a-mail channel for one helper agent to leave scoped messages for another.
-
-```yaml
-agent_mesh:
-  enabled: false
-  shared_short_agent: true
-  default_agent: codex
-  skill_root: mesh-skills
-  memory_root: ""
-  policies:
-    - name: review-advice
-      role: review-advice
-      scope: session
-      backend: codex
-      skill: review-advice
-      agent: codex
-      enabled: true
-  mail:
-    enabled: true
-    dir: ""
-```
-
-`backend` can be `builtin`, `codex`, `claude-code`, `hermes`, or `command`. Codex/Claude backends should be constrained by the role skills under `mesh-skills/<skill>/SKILL.md`; tmux-kanban treats those as role instructions, not as permission to execute actions directly.
-
-Hermes review advice reads the `review-advice` skill file and scoped local memory when `agent_mesh.memory_root` is set. Memory is markdown, read from root to leaf, and only affects advice:
+That said, I am preparing for more autonomous dispatch. The main design idea is scoped memory: guidance can exist at multiple granularities, from global project notes down to host, session, window, and pane context.
 
 ```text
 memory_root/
@@ -145,11 +68,149 @@ memory_root/
   hosts/<host>/sessions/<session>/windows/<window>/panes/<pane>/memory.md
 ```
 
-Set `hermes.enabled: true` plus `hermes.auto_review: true`, or run `:set hermes on` and `:set hermes.auto_review on`, to ask Hermes automatically when a session first enters `need review`. Auto review only accepts explicit Hermes replies that start with `CHOOSE <number>` or `SKIP`; `ASK`, unclear replies, stale sessions, or invisible choices remain for human review.
+For now, this memory mainly informs review advice. Later it can guide task dispatch, summarization, and cross-session coordination.
 
-## Agent CLI
+In spirit, my longer-term vision overlaps a little with [openai/symphony](https://github.com/openai/symphony): moving from supervising coding agents directly toward managing work at a higher level. The difference is that tmux-kanban is much more personal and tmux-centered. I started this project before noticing Symphony had been open sourced, which was a funny coincidence.
 
-The same binary exposes JSON commands for external agents:
+### Snapshots For Agent Debugging
+
+Snapshots are meant to make behavior debuggable without requiring me to inspect every line of code myself. A snapshot records the config summary, host/session topology, review queue, status maps, current preview, and recent scan errors. That gives a coding agent enough evidence to investigate why a session was marked idle, working, waiting for review, or done.
+
+This matters because the project is intentionally agent-assisted. I chose Go partly because I know a little Go, but in practice I often debug by asking agents to inspect snapshots and tests rather than reading the whole codebase manually.
+
+### Name
+
+The name is admittedly plain. A friend already complained about it. Naming is hard; the current name at least says what it does.
+
+### Roadmap
+
+The near-term plan is mostly maintenance: fix bugs found in real use, make the status detection less brittle, and continue cleaning up the code structure after the first working version. For my own workflow, there are not many urgent new features left; the tool already covers the main pain point I built it for.
+
+If I have time, I may improve the Codex and Claude Code integrations, support more tmux layouts, and make the mesh/memory pieces more useful. But this is exactly the sort of sentence that often turns into a quiet TODO forever, so treat it as direction rather than a promise.
+
+### Quick Start
+
+```bash
+go run ./cmd/tmux-kanban
+```
+
+Use a config file:
+
+```bash
+cp config.example.yaml config.yaml
+go run ./cmd/tmux-kanban --config ./config.yaml
+```
+
+Build a binary:
+
+```bash
+go build -o ./bin/tmux-kanban ./cmd/tmux-kanban
+```
+
+### Local Config
+
+Keep personal hostnames, SSH targets, notification settings, local Hermes paths, and snapshot directories in `config.yaml`. The repo only tracks `config.example.yaml`.
+
+```yaml
+hosts:
+  - name: local
+    local: true
+  - name: gpu-a
+    ssh: user@gpu-a
+```
+
+### Controls
+
+- `r` scans configured hosts for tmux sessions.
+- `:` opens the command prompt.
+- `j` / `k` or arrow keys move the cursor.
+- `enter` / `space` expands or collapses a host, session, or window.
+- `s` cycles the selected session through `idle`, `working`, `need review`, and `done`.
+- `a` attaches to the selected session, window, or pane target.
+- `m` sends a message to the first detected agent pane for the selected target.
+- `x` relays selection keys to the first detected agent pane for the selected target.
+- `g` opens Main Room, a local coordination channel.
+- `tab` / `v` switches between tree view and the focused review queue.
+- In review view, `h` asks Hermes for advice, `1-9` chooses, `s` skips, and `u` restores skipped items.
+- `d` saves a diagnostic snapshot.
+- `q` quits.
+
+### TUI Commands
+
+Press `:` to open the command prompt. Commands support completion suggestions; use `up` / `down` or `ctrl+p` / `ctrl+n` to move through suggestions, `tab` to accept one, `enter` to run it, and `esc` or `ctrl+c` to cancel.
+
+These commands are runtime controls. They affect the current TUI process only and do not rewrite `config.yaml`.
+
+General navigation and state:
+
+```text
+:help
+:refresh
+:view tree
+:view review
+:view main
+:status idle
+:status working
+:status need-review
+:status done
+:snapshot
+```
+
+`:refresh` rescans configured tmux hosts. `:view` switches between the tree, review queue, and Main Room. `:status` manually overrides the selected session's state. `:snapshot` saves a diagnostic JSON snapshot; if no description is provided, the TUI prompts for one.
+
+Main Room commands:
+
+```text
+:main start
+:main hide
+:main status
+:main codex
+:main claude
+:main host local
+:main session tmux-kanban-main
+:main command codex
+```
+
+Main Room is a coordination surface and preview target for a configured conductor session. Some commands already change the runtime config and preview target, but the broader "main agent harness" is still experimental.
+
+Hermes, QQ, and runtime settings:
+
+```text
+:settings
+:set qq on
+:set qq off
+:set hermes on
+:set hermes.auto_review on
+:set main.agent claude
+:set main.host local
+:set main.session tmux-kanban-main
+:notify optional message for Hermes
+```
+
+`:notify` uses the configured Hermes/QQ notification path and still requires `notification.qq_enabled: true`. Hermes auto review is intentionally conservative: automatic choices require explicit Hermes replies such as `CHOOSE <number>` or `SKIP`.
+
+Agent mesh commands:
+
+```text
+:mesh status
+:mesh on
+:mesh off
+:mesh default claude
+:mesh shared off
+:mesh skill-root ./mesh-skills
+:mesh memory ~/.local/state/tmux-kanban/memory
+:mesh policy review-advice backend claude
+:mesh policy review-advice agent claude
+:mesh policy review-advice skill review-advice
+:mesh policy review-advice off
+:mesh mail dir ~/.local/state/tmux-kanban/mail
+:set mesh.mail on
+:set mesh.memory_root ~/.local/state/tmux-kanban/memory
+```
+
+The mesh commands currently expose the role, backend, skill, mail, and memory configuration model at runtime. The memory and review-advice pieces are useful today, while full autonomous task dispatch is still a scaffold rather than a finished workflow.
+
+### Agent CLI
 
 ```bash
 ./bin/tmux-kanban capabilities --config ./config.yaml
@@ -164,51 +225,15 @@ The same binary exposes JSON commands for external agents:
 ./bin/tmux-kanban snapshot --config ./config.yaml
 ```
 
-`review-list` returns current `need review` panes by default. Add `--all` to list every detected `codex` / `claude-code` pane with its inferred state. Each item includes `host`, `target`, `agent`, and detected choices, so another agent can call `capture`, `choose`, or `send` without opening the TUI.
+`review-list` returns current `need review` panes by default. Add `--all` to list every detected Codex or Claude Code pane with its inferred state.
 
-QQ notification is opt-in and side-effect free by default. Set `notification.qq_enabled: true`, then run `review-list --notify` or `notify-review` to ask the configured Hermes oneshot command to call `send_message(target="qqbot", message=...)`. Notifications are only attempted when current `needs_review` items are non-empty; otherwise the command only prints JSON. The Hermes prompt includes host, target, agent, pane capture, detected choices, and the `--intent` value because oneshot calls do not inherit QQ chat context.
+### Architecture
 
-```yaml
-hermes:
-  enabled: false
-  auto_review: false
-  command: hermes
-  args:
-    - --oneshot
-  timeout_seconds: 120
-
-notification:
-  qq_enabled: false
-
-debug:
-  snapshot_dir: ""
-```
-
-Snapshots default to `~/.local/state/tmux-kanban/snapshots`. Each snapshot is JSON and includes config summary, host/session state, review queue, status maps, current preview, and recent scan errors.
-
-## Architecture
-
-- `internal/core` owns pure session status and review queue logic.
-- `internal/agent` owns agent-facing concepts such as screen analysis, choices, targets, and external reviewer interfaces.
-- `internal/mesh` owns the agent mesh scaffold: roles, scopes, memory tree, a-mail, and per-scope agent specs.
-- `internal/tmux` exposes a tmux client boundary for scanning, capture, send, and attach operations.
-- `internal/ui` keeps shared TUI input/keymap primitives.
-- `internal/debug` writes diagnostic snapshots shared by TUI and CLI.
-
-## Quick Start
-
-```bash
-go run ./cmd/tmux-kanban
-```
-
-Use a config file:
-
-```bash
-go run ./cmd/tmux-kanban --config ./config.example.yaml
-```
-
-Build a binary:
-
-```bash
-go build -o ./bin/tmux-kanban ./cmd/tmux-kanban
-```
+- `cmd/tmux-kanban`: TUI and JSON CLI entrypoints.
+- `internal/core`: pure status and review queue logic.
+- `internal/agent`: agent-facing screen analysis, choices, targets, and reviewer concepts.
+- `internal/mesh`: role, scope, memory tree, and a-mail scaffolding.
+- `internal/tmux`: tmux client boundary.
+- `internal/tmuxscan`: tmux command parsing and screen detection.
+- `internal/debug`: diagnostic snapshot writer.
+- `internal/ui`: shared TUI key/input primitives.
