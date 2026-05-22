@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -501,6 +502,67 @@ func TestRowsGroupSessionsGloballyAcrossHosts(t *testing.T) {
 	view := ansi.Strip(m.renderHosts(92, 18))
 	if strings.Count(view, "AGENT SESSIONS") != 1 || strings.Count(view, "OTHER SESSIONS") != 1 {
 		t.Fatalf("view should show one global pair of session columns:\n%s", view)
+	}
+}
+
+func TestRenderHostsScrollsColumnsToSelectedSession(t *testing.T) {
+	host := config.Host{Name: "local", Local: true}
+	sessions := make([]tmuxscan.Session, 0, 8)
+	for i := 0; i < 8; i++ {
+		sessions = append(sessions, tmuxscan.Session{ID: fmt.Sprintf("$plain%d", i), Name: fmt.Sprintf("plain-%d", i)})
+	}
+	m := model{
+		hosts: []hostState{{
+			host:     host,
+			snapshot: tmuxscan.Snapshot{Sessions: sessions},
+			loaded:   true,
+		}},
+		expanded: map[string]bool{"host:0": true},
+		cursor:   7,
+	}
+
+	view := ansi.Strip(m.renderHosts(80, 10))
+	if !strings.Contains(view, "local/plain-7") {
+		t.Fatalf("view missing selected row after scroll:\n%s", view)
+	}
+	if strings.Contains(view, "local/plain-0") {
+		t.Fatalf("view still shows top row instead of scrolling:\n%s", view)
+	}
+}
+
+func TestRenderHostsScrollsStackToSelectedOtherSession(t *testing.T) {
+	host := config.Host{Name: "local", Local: true}
+	sessions := make([]tmuxscan.Session, 0, 10)
+	for i := 0; i < 4; i++ {
+		sessions = append(sessions, tmuxscan.Session{
+			ID:   fmt.Sprintf("$agent%d", i),
+			Name: fmt.Sprintf("agent-%d", i),
+			Windows: []tmuxscan.Window{{
+				ID:    fmt.Sprintf("@agent%d", i),
+				Index: "0",
+				Panes: []tmuxscan.Pane{{ID: fmt.Sprintf("%%agent%d", i), Index: "0", Agent: tmuxscan.AgentCodex}},
+			}},
+		})
+	}
+	for i := 0; i < 6; i++ {
+		sessions = append(sessions, tmuxscan.Session{ID: fmt.Sprintf("$plain%d", i), Name: fmt.Sprintf("plain-%d", i)})
+	}
+	m := model{
+		hosts: []hostState{{
+			host:     host,
+			snapshot: tmuxscan.Snapshot{Sessions: sessions},
+			loaded:   true,
+		}},
+		expanded: map[string]bool{"host:0": true},
+		cursor:   9,
+	}
+
+	view := ansi.Strip(m.renderHosts(60, 12))
+	if !strings.Contains(view, "local/plain-5") {
+		t.Fatalf("view missing selected other row after stack scroll:\n%s", view)
+	}
+	if strings.Contains(view, "local/agent-0") {
+		t.Fatalf("stack view still shows top agent row instead of scrolling:\n%s", view)
 	}
 }
 

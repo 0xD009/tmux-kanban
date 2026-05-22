@@ -28,12 +28,19 @@ func (m model) renderHosts(width int, height int) string {
 	if m.cursor >= len(rows) {
 		m.cursor = len(rows) - 1
 	}
-
-	if lineWidth >= 58 {
-		lines = append(lines, m.renderSessionColumns(rows, lineWidth)...)
-	} else {
-		lines = append(lines, m.renderSessionStack(rows, lineWidth)...)
+	if m.cursor < 0 {
+		m.cursor = 0
 	}
+
+	contentHeight := maxInt(0, innerHeight-len(lines))
+	selectedLine := m.explorerSelectedContentLine(rows, lineWidth)
+	content := []string{}
+	if lineWidth >= 58 {
+		content = m.renderSessionColumns(rows, lineWidth)
+	} else {
+		content = m.renderSessionStack(rows, lineWidth)
+	}
+	lines = append(lines, scrollExplorerContent(content, contentHeight, selectedLine)...)
 
 	return renderFixedPanel(width, innerHeight, lines)
 }
@@ -87,6 +94,50 @@ func (m model) partitionSessionRows(rows []row) ([]indexedRow, []indexedRow) {
 		}
 	}
 	return agentRows, otherRows
+}
+
+func (m model) explorerSelectedContentLine(rows []row, width int) int {
+	if len(rows) == 0 || m.cursor < 0 || m.cursor >= len(rows) {
+		return 0
+	}
+
+	agentRows, otherRows := m.partitionSessionRows(rows)
+	for i, item := range agentRows {
+		if item.index == m.cursor {
+			return 1 + i
+		}
+	}
+	for i, item := range otherRows {
+		if item.index != m.cursor {
+			continue
+		}
+		if width >= 58 {
+			return 1 + i
+		}
+		return 1 + renderedIndexedRowsHeight(agentRows) + 1 + i
+	}
+	return 0
+}
+
+func renderedIndexedRowsHeight(rows []indexedRow) int {
+	if len(rows) == 0 {
+		return 1
+	}
+	return len(rows)
+}
+
+func scrollExplorerContent(lines []string, height int, selectedLine int) []string {
+	if height <= 0 || len(lines) <= height {
+		return lines
+	}
+
+	selectedLine = clampInt(selectedLine, 0, len(lines)-1)
+	start := 0
+	if selectedLine >= height {
+		start = selectedLine - height + 1
+	}
+	start = clampInt(start, 0, len(lines)-height)
+	return lines[start : start+height]
 }
 
 func (m model) renderIndexedRows(rows []indexedRow, width int) []string {
