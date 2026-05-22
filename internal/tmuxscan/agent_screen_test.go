@@ -311,6 +311,32 @@ func TestAnalyzeAgentScreenIgnoresOldApprovalTranscript(t *testing.T) {
 	}
 }
 
+func TestAnalyzeAgentScreenDoesNotExposeIdlePromptChoicesWhileBusy(t *testing.T) {
+	screen := AnalyzeAgentScreen([]string{
+		"• Working (45s • esc to interrupt)",
+		"",
+		"› Implement {feature}",
+		"",
+		"gpt-5.5 high · ~/repo",
+	})
+
+	if !screen.Busy {
+		t.Fatalf("screen busy = false, want true")
+	}
+	if !screen.Idle {
+		t.Fatalf("screen idle = false, want true because prompt is visible")
+	}
+	if len(screen.Choices) != 0 {
+		t.Fatalf("choices = %#v, want no choices while busy", screen.Choices)
+	}
+	if screen.SelectedChoice != -1 {
+		t.Fatalf("selected choice = %d, want -1", screen.SelectedChoice)
+	}
+	if screen.NeedsReview {
+		t.Fatalf("screen needs review = true, want false")
+	}
+}
+
 func TestAnalyzeAgentScreenDoesNotTreatPlanTodoAsReview(t *testing.T) {
 	screen := AnalyzeAgentScreen([]string{
 		"Plan:",

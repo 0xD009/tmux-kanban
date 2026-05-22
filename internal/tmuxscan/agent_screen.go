@@ -91,13 +91,17 @@ func AnalyzeAgentScreen(lines []string) AgentScreen {
 		}
 		screen.Choices = append(screen.Choices, choice.Choice)
 	}
-	if len(screen.Choices) > 0 {
+	screen.NeedsReview = currentScreenNeedsReview(cleanLines, choices, currentStart)
+	if screen.Busy && !screen.NeedsReview {
+		hadVisiblePromptChoice := len(screen.Choices) > 0
+		screen.Choices = nil
+		screen.SelectedChoice = -1
+		if hadVisiblePromptChoice {
+			screen.Idle = true
+		}
+	} else if len(screen.Choices) > 0 {
 		screen.Idle = true
 	}
-	if screen.Busy && len(screen.Choices) == 0 {
-		screen.Idle = false
-	}
-	screen.NeedsReview = currentScreenNeedsReview(cleanLines, choices, currentStart)
 
 	return screen
 }
