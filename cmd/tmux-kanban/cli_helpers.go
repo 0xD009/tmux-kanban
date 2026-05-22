@@ -65,6 +65,8 @@ func printCLIUsage(w io.Writer) {
   choose      --config ./config.yaml --host local --target %1 --choice 1
   send        --config ./config.yaml --host local --target %1 --text "hello" [--submit=false]
   send-keys   --config ./config.yaml --host local --target %1 --keys C-c,C-m
+  session-open  --config ./config.yaml --host local --name work [--command codex -- --profile kanban]
+  session-close --config ./config.yaml --host local --name work --confirm local/work
   snapshot    --config ./config.yaml [--description "..."] [--dir ~/.local/state/tmux-kanban/snapshots]
 
 All commands print JSON to stdout. The main session is a conductor with the tmux-kanban-review skill and these JSON CLI abilities.`)

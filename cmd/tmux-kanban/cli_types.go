@@ -78,6 +78,17 @@ type cliSendResponse struct {
 	Error  string   `json:"error,omitempty"`
 }
 
+type cliSessionResponse struct {
+	OK              bool   `json:"ok"`
+	Host            string `json:"host"`
+	Session         string `json:"session"`
+	Action          string `json:"action"`
+	Created         bool   `json:"created,omitempty"`
+	Closed          bool   `json:"closed,omitempty"`
+	RequiredConfirm string `json:"required_confirm,omitempty"`
+	Error           string `json:"error,omitempty"`
+}
+
 type cliSnapshotResponse struct {
 	OK    bool   `json:"ok"`
 	Path  string `json:"path,omitempty"`

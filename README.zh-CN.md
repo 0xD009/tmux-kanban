@@ -34,7 +34,7 @@ Codex 和 Claude Code 都有 remote control 能力，但在我的环境里连接
 - 为 Codex 和 Claude Code 的等待输入场景维护 focused review queue。
 - 对选中的 session、window、pane 做 live terminal preview。
 - 支持 attach、快速发消息、relay keys、数字选项选择。
-- 提供 JSON CLI：review list、capture、choose、send、notify、snapshot。
+- 提供 JSON CLI：review list、capture、choose、send、session 管理、notify、snapshot。
 - 可选 Hermes 集成，用于建议、手机远程工作和社交媒体通知。
 - 提供 snapshot，方便 agent 基于证据 debug。
 - 有实验性的 agent mesh scaffold，用于记忆、review advice 和未来的任务派发。
@@ -151,10 +151,15 @@ hosts:
 :status working
 :status need-review
 :status done
+:session open work
+:session open remote-host/work
+:session close here
+:session close remote-host/work
+:session close confirm remote-host/work
 :snapshot
 ```
 
-`:refresh` 会重新扫描配置里的 tmux host。`:view` 在 tree 和 review queue 之间切换。`:status` 手动覆盖当前选中 session 的状态。`:snapshot` 保存 diagnostic JSON snapshot；如果没有直接写 description，TUI 会继续询问。
+`:refresh` 会重新扫描配置里的 tmux host。`:view` 在 tree 和 review queue 之间切换。`:status` 手动覆盖当前选中 session 的状态。`:session open` 默认在当前选中的 host 上创建 tmux session，也可以用 `host/session` 指定 host。`:session close` 会先进入待确认状态，并在状态栏给出精确的 `:session close confirm host/session` 命令；只有再次执行确认命令才会真正 kill session。`:snapshot` 保存 diagnostic JSON snapshot；如果没有直接写 description，TUI 会继续询问。
 
 Hermes、QQ 和运行时设置：
 
@@ -215,10 +220,13 @@ mesh 命令目前主要是在运行时暴露 role、backend、skill、mail、mem
 ./bin/tmux-kanban choose --config ./config.yaml --host local --target android:0.0 --choice 1
 ./bin/tmux-kanban send --config ./config.yaml --host local --target android:0.0 --text "continue"
 ./bin/tmux-kanban send-keys --config ./config.yaml --host local --target android:0.0 --keys C-c,C-m
+./bin/tmux-kanban session-open --config ./config.yaml --host local --name work
+./bin/tmux-kanban session-close --config ./config.yaml --host local --name work --confirm local/work
 ./bin/tmux-kanban snapshot --config ./config.yaml
 ```
 
 `review-list` 默认返回当前 `need review` 的 pane。加上 `--all` 可以列出所有检测到的 Codex / Claude Code pane 及其推断状态。
+`session-open` 会在目标 host 上创建指定初始名称的 tmux session（已存在则不重复创建）。`session-close` 必须带 `--confirm <host>/<session>`，远程调用方需要复述精确目标后才会真正 kill session。
 
 ### 架构
 

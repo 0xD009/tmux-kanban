@@ -517,11 +517,20 @@ func TestCollectCapabilitiesDescribesMainSessionSkillAndCLI(t *testing.T) {
 	if len(response.Skills) != 1 || response.Skills[0] != mainSessionSkillName {
 		t.Fatalf("skills = %#v, want main session skill", response.Skills)
 	}
-	if !containsString(response.CLICommands, "review-list") || !containsString(response.CLICommands, "choose") {
-		t.Fatalf("cli commands = %#v, want agent control commands", response.CLICommands)
+	for _, command := range []string{"review-list", "choose", "session-open", "session-close"} {
+		if !containsString(response.CLICommands, command) {
+			t.Fatalf("cli commands = %#v, want %s", response.CLICommands, command)
+		}
 	}
 	if !strings.Contains(response.Summary, mainSessionSkillName) {
 		t.Fatalf("summary = %q, want skill name", response.Summary)
+	}
+}
+
+func TestSessionCloseConfirmationTokenIncludesHostAndSession(t *testing.T) {
+	host := config.Host{Name: "nebula", SSH: "nebula.example"}
+	if got := sessionCloseConfirmationToken(host, "work"); got != "nebula/work" {
+		t.Fatalf("confirmation token = %q, want nebula/work", got)
 	}
 }
 
@@ -1776,6 +1785,82 @@ func TestExecuteCommandSetsViewMode(t *testing.T) {
 	next, _ = next.executeCommand("tree")
 	if next.viewMode != viewTree {
 		t.Fatalf("view mode = %q, want tree", next.viewMode)
+	}
+}
+
+func TestExecuteCommandPreparesSelectedSessionClose(t *testing.T) {
+	host := config.Host{Name: "local", Local: true}
+	session := tmuxscan.Session{ID: "$1", Name: "agents"}
+	m := model{
+		cfg: config.Config{Hosts: []config.Host{host}},
+		hosts: []hostState{{
+			host:     host,
+			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}},
+			loaded:   true,
+		}},
+		expanded: map[string]bool{"host:0": true},
+		cursor:   0,
+	}
+
+	next, cmd := m.executeCommand("session close here")
+	if cmd != nil {
+		t.Fatalf("session close preparation returned cmd, want nil")
+	}
+	if next.sessionClose.token != "local/agents" {
+		t.Fatalf("pending close = %#v, want local/agents", next.sessionClose)
+	}
+	if !strings.Contains(next.status, "session close confirm local/agents") {
+		t.Fatalf("status = %q, want confirmation command", next.status)
+	}
+}
+
+func TestExecuteCommandRequiresMatchingSessionCloseConfirmation(t *testing.T) {
+	host := config.Host{Name: "local", Local: true}
+	m := model{
+		cfg:          config.Config{Hosts: []config.Host{host}},
+		hosts:        []hostState{{host: host}},
+		sessionClose: pendingSessionClose{host: host, session: "agents", token: "local/agents"},
+	}
+
+	next, cmd := m.executeCommand("session close confirm local/other")
+	if cmd != nil {
+		t.Fatalf("mismatched confirmation returned cmd, want nil")
+	}
+	if next.sessionClose.token != "local/agents" {
+		t.Fatalf("pending close changed to %#v, want original", next.sessionClose)
+	}
+	if next.status != "close confirmation mismatch" {
+		t.Fatalf("status = %q, want mismatch", next.status)
+	}
+
+	next, cmd = next.executeCommand("session close confirm local/agents")
+	if cmd == nil {
+		t.Fatalf("matching confirmation returned nil cmd, want close command")
+	}
+	if next.sessionClose.token != "" {
+		t.Fatalf("pending close = %#v, want cleared", next.sessionClose)
+	}
+}
+
+func TestResolveSessionCommandTargetUsesSelectedHostByDefault(t *testing.T) {
+	local := config.Host{Name: "local", Local: true}
+	remote := config.Host{Name: "nebula", SSH: "nebula"}
+	m := model{
+		cfg: config.Config{Hosts: []config.Host{local, remote}},
+		hosts: []hostState{
+			{host: local, loaded: true},
+			{host: remote, snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{{ID: "$1", Name: "remote-agent"}}}, loaded: true},
+		},
+		expanded: map[string]bool{},
+		cursor:   0,
+	}
+
+	host, session, ok := m.resolveSessionCommandTarget("work")
+	if !ok {
+		t.Fatalf("resolve target ok = false, status=%q", m.status)
+	}
+	if host.Name != "nebula" || session != "work" {
+		t.Fatalf("target = %s/%s, want nebula/work", host.Name, session)
 	}
 }
 

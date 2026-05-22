@@ -11,6 +11,8 @@ var mainSessionCLIAbilities = []string{
 	"choose",
 	"send",
 	"send-keys",
+	"session-open",
+	"session-close",
 	"snapshot",
 	"notify-review",
 }

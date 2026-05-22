@@ -15,6 +15,8 @@ type Client interface {
 	SendKeySequence(ctx context.Context, host config.Host, target string, keys ...string) tmuxscan.SendResult
 	SendText(ctx context.Context, host config.Host, target string, text string, submit bool) tmuxscan.SendResult
 	EnsureSession(ctx context.Context, host config.Host, session string, command string, args ...string) tmuxscan.EnsureSessionResult
+	StartSession(ctx context.Context, host config.Host, session string, command string, args ...string) tmuxscan.StartSessionResult
+	CloseSession(ctx context.Context, host config.Host, session string) tmuxscan.CloseSessionResult
 	AttachCommand(host config.Host, target string) *exec.Cmd
 }
 
@@ -42,6 +44,14 @@ func (DefaultClient) SendText(ctx context.Context, host config.Host, target stri
 
 func (DefaultClient) EnsureSession(ctx context.Context, host config.Host, session string, command string, args ...string) tmuxscan.EnsureSessionResult {
 	return tmuxscan.EnsureSession(ctx, host, session, command, args...)
+}
+
+func (DefaultClient) StartSession(ctx context.Context, host config.Host, session string, command string, args ...string) tmuxscan.StartSessionResult {
+	return tmuxscan.StartSession(ctx, host, session, command, args...)
+}
+
+func (DefaultClient) CloseSession(ctx context.Context, host config.Host, session string) tmuxscan.CloseSessionResult {
+	return tmuxscan.CloseSession(ctx, host, session)
 }
 
 func (DefaultClient) AttachCommand(host config.Host, target string) *exec.Cmd {

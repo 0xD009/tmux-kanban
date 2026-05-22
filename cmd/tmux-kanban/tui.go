@@ -327,6 +327,43 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Message: "wrote " + msg.path,
 			})
 		}
+	case sessionOperationResult:
+		target := sessionCloseConfirmationToken(msg.host, msg.session)
+		if msg.err != "" {
+			m.status = msg.action + " failed: " + clipString(msg.err, 100)
+			m.addAgentActivity(agentActivity{
+				Source:  agentActivitySession,
+				Agent:   "tmux",
+				Target:  target,
+				State:   "error",
+				Message: msg.action + ": " + clipString(msg.err, 80),
+			})
+			return m, nil
+		}
+		switch msg.action {
+		case "session-open":
+			if msg.created {
+				m.status = "session opened: " + target
+			} else {
+				m.status = "session already exists: " + target
+			}
+		case "session-close":
+			if msg.closed {
+				m.status = "session closed: " + target
+			} else {
+				m.status = "session close skipped: " + target
+			}
+			m.preview = previewState{}
+		}
+		m.addAgentActivity(agentActivity{
+			Source:  agentActivitySession,
+			Agent:   "tmux",
+			Target:  target,
+			State:   "session",
+			Message: msg.action,
+		})
+		next, cmd := m.startScanModelWithAnnounce(false)
+		return next, cmd
 	case sendResult:
 		targetLabel := m.sendResultDisplayLabel(msg.result)
 		if msg.result.Err != "" {

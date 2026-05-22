@@ -22,6 +22,7 @@ type model struct {
 	control       agentControlState
 	compose       composeState
 	command       commandState
+	sessionClose  pendingSessionClose
 	snapshotInput snapshotDescriptionState
 	viewMode      viewMode
 	hermes        map[string]hermesAdvice
@@ -181,6 +182,15 @@ type snapshotResult struct {
 	err  string
 }
 
+type sessionOperationResult struct {
+	action  string
+	host    config.Host
+	session string
+	created bool
+	closed  bool
+	err     string
+}
+
 type snapshotDescriptionState struct {
 	active    bool
 	text      string
@@ -232,6 +242,12 @@ type commandState struct {
 	active   bool
 	text     string
 	selected int
+}
+
+type pendingSessionClose struct {
+	host    config.Host
+	session string
+	token   string
 }
 
 type sessionStatus = core.SessionStatus

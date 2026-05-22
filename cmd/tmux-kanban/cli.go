@@ -7,7 +7,7 @@ import (
 
 func isCLICommand(arg string) bool {
 	switch arg {
-	case "capabilities", "review-list", "notify-review", "capture", "choose", "send", "send-keys", "snapshot", "help":
+	case "capabilities", "review-list", "notify-review", "capture", "choose", "send", "send-keys", "session-open", "session-close", "snapshot", "help":
 		return true
 	default:
 		return false
@@ -35,6 +35,10 @@ func runCLI(args []string) error {
 		return cliSend(args[1:])
 	case "send-keys":
 		return cliSendKeys(args[1:])
+	case "session-open":
+		return cliSessionOpen(args[1:])
+	case "session-close":
+		return cliSessionClose(args[1:])
 	case "snapshot":
 		return cliSnapshot(args[1:])
 	default:

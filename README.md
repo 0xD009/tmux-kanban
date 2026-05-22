@@ -34,7 +34,7 @@ I have not tested the full matrix of tmux window-splitting workflows yet, becaus
 - Focused review queue for Codex and Claude Code prompts.
 - Live terminal preview for selected sessions, windows, and panes.
 - Direct attach, quick message sending, key relay, and numbered choice selection.
-- JSON CLI commands for review listing, capture, choose, send, notify, and snapshot.
+- JSON CLI commands for review listing, capture, choose, send, session management, notify, and snapshot.
 - Optional Hermes integration for advice, mobile workflows, and social-media notification hooks.
 - Diagnostic snapshots designed for agent-assisted debugging.
 - Experimental agent-mesh scaffolding for memory, review advice, and future task dispatch.
@@ -151,10 +151,15 @@ General navigation and state:
 :status working
 :status need-review
 :status done
+:session open work
+:session open remote-host/work
+:session close here
+:session close remote-host/work
+:session close confirm remote-host/work
 :snapshot
 ```
 
-`:refresh` rescans configured tmux hosts. `:view` switches between the tree and review queue. `:status` manually overrides the selected session's state. `:snapshot` saves a diagnostic JSON snapshot; if no description is provided, the TUI prompts for one.
+`:refresh` rescans configured tmux hosts. `:view` switches between the tree and review queue. `:status` manually overrides the selected session's state. `:session open` creates a tmux session on the selected host by default, or on a named host with `host/session`. `:session close` prepares a close and prints the exact `:session close confirm host/session` command required before tmux kills it. `:snapshot` saves a diagnostic JSON snapshot; if no description is provided, the TUI prompts for one.
 
 Hermes, QQ, and runtime settings:
 
@@ -215,10 +220,13 @@ The mesh commands currently expose the role, backend, skill, mail, and memory co
 ./bin/tmux-kanban choose --config ./config.yaml --host local --target android:0.0 --choice 1
 ./bin/tmux-kanban send --config ./config.yaml --host local --target android:0.0 --text "continue"
 ./bin/tmux-kanban send-keys --config ./config.yaml --host local --target android:0.0 --keys C-c,C-m
+./bin/tmux-kanban session-open --config ./config.yaml --host local --name work
+./bin/tmux-kanban session-close --config ./config.yaml --host local --name work --confirm local/work
 ./bin/tmux-kanban snapshot --config ./config.yaml
 ```
 
 `review-list` returns current `need review` panes by default. Add `--all` to list every detected Codex or Claude Code pane with its inferred state.
+`session-open` creates the named tmux session if it does not already exist. `session-close` requires `--confirm <host>/<session>` so remote callers must echo the exact target before tmux kills the session.
 
 ### Architecture
 

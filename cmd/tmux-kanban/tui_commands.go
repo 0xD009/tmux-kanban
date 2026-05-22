@@ -155,13 +155,15 @@ func (m model) executeCommand(input string) (model, tea.Cmd) {
 	args := fields[1:]
 	switch name {
 	case "help", "?":
-		m.status = "commands: refresh | view tree/review | memory update scope | mesh on/off/status/policy | set qq/hermes/hermes.auto_review/hermes.done_advice/hermes.auto_done/hermes.idle_advice/hermes.auto_idle/mesh.* | status idle/working/need-review/done | notify | snapshot"
+		m.status = "commands: refresh | view tree/review | session open/close | memory update scope | mesh on/off/status/policy | set qq/hermes/hermes.auto_review/hermes.done_advice/hermes.auto_done/hermes.idle_advice/hermes.auto_idle/mesh.* | status idle/working/need-review/done | notify | snapshot"
 	case "refresh", "scan", "r":
 		return m.startScanModel()
 	case "tree":
 		m.setViewMode(viewTree)
 	case "review":
 		m.setViewMode(viewReview)
+	case "session", "sessions":
+		return m.executeSessionCommand(args)
 	case "mesh", "agent-mesh":
 		m.executeMeshCommand(args)
 	case "memory", "mem":
