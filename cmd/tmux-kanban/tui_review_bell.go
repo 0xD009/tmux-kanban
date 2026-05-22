@@ -7,11 +7,17 @@ import (
 )
 
 var writeTerminalBell = func() {
-	_, _ = os.Stdout.Write([]byte{'\a'})
+	_, _ = os.Stdout.Write(needReviewTerminalAlertSequence())
 }
 
-func needReviewBellCmd(hadOld bool, oldStatus sessionStatus, nextStatus sessionStatus) tea.Cmd {
-	if !enteredNeedReview(hadOld, oldStatus, nextStatus) {
+const needReviewTerminalTitle = "tmux-kanban: NEED REVIEW"
+
+func needReviewTerminalAlertSequence() []byte {
+	return []byte("\a\x1b]1;" + needReviewTerminalTitle + "\x1b\\\x1b]2;" + needReviewTerminalTitle + "\x1b\\")
+}
+
+func needReviewBellCmd(hadOld bool, oldStatus sessionStatus, nextStatus sessionStatus, handledByHermes bool) tea.Cmd {
+	if handledByHermes || !enteredNeedReview(hadOld, oldStatus, nextStatus) {
 		return nil
 	}
 	return func() tea.Msg {

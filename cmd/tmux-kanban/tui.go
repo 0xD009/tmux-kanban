@@ -192,7 +192,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			oldReviewKey := m.reviewCursorKey
 			m.applyAgentStatusResult(msg)
 			nextStatus := m.sessionStatusForKey(msg.key)
-			bellCmd := needReviewBellCmd(hadOldStatus, oldStatus, nextStatus)
 			if m.shouldLogPolledStatusChange(hadOldStatus, oldStatus, nextStatus) {
 				m.addAgentActivity(agentActivity{
 					Source:  agentActivitySession,
@@ -209,6 +208,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			autoCmd := m.autoHermesReviewCmd(hadOldStatus, oldStatus, nextStatus, msg.key)
+			bellCmd := needReviewBellCmd(hadOldStatus, oldStatus, nextStatus, autoCmd != nil)
 			if bellCmd != nil || autoCmd != nil {
 				return m, tea.Batch(bellCmd, autoCmd, m.ensurePreview())
 			}
@@ -343,7 +343,7 @@ func (m model) View() string {
 
 	if contentWidth >= 140 {
 		kanbanWidth := threeColumnSideWidth(contentWidth)
-		activityWidth := threeColumnSideWidth(contentWidth)
+		activityWidth := threeColumnActivityWidth(contentWidth, kanbanWidth)
 		kanban := m.renderKanban(kanbanWidth, contentHeight)
 		workspaceLeftCol := lipgloss.Width(kanban) + 3
 		workspaceWidth := maxInt(60, contentWidth-kanbanWidth-activityWidth-4)

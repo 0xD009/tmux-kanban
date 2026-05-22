@@ -95,7 +95,7 @@ func (m model) renderWorkspace(width int, height int, topRow int, leftCol int) s
 func (m model) renderReviewView(width int, height int, topRow int, leftCol int) string {
 	if width >= 140 {
 		queueWidth := threeColumnSideWidth(width)
-		activityWidth := threeColumnSideWidth(width)
+		activityWidth := threeColumnActivityWidth(width, queueWidth)
 		queue := m.renderReviewQueue(queueWidth, height)
 		previewLeftCol := leftCol + lipgloss.Width(queue) + 2
 		preview := m.renderPreviewPanel(maxInt(60, width-queueWidth-activityWidth-4), height, topRow, previewLeftCol)
@@ -122,6 +122,17 @@ func (m model) renderReviewView(width int, height int, topRow int, leftCol int) 
 
 func threeColumnSideWidth(totalWidth int) int {
 	return minInt(42, maxInt(38, totalWidth/4))
+}
+
+func threeColumnActivityWidth(totalWidth int, leftWidth int) int {
+	available := totalWidth - leftWidth - 4
+	if available <= 60 {
+		return threeColumnSideWidth(totalWidth)
+	}
+
+	oneThirdOfPreview := (available + 3) / 4
+	width := maxInt(threeColumnSideWidth(totalWidth), oneThirdOfPreview)
+	return minInt(width, available-60)
 }
 
 func twoColumnSideWidth(totalWidth int) int {
@@ -248,7 +259,7 @@ func splitWorkspaceHeights(height int) (int, int) {
 
 	minHostsHeight := 8
 	minPreviewHeight := 8
-	previewHeight := maxInt(14, (height*2)/3)
+	previewHeight := maxInt(14, (height*5)/6)
 	maxPreviewHeight := height - minHostsHeight
 	if maxPreviewHeight < 1 {
 		maxPreviewHeight = 1

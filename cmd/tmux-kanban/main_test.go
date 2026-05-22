@@ -2303,7 +2303,7 @@ func TestNeedReviewBellOnlyWhenEnteringNeedReview(t *testing.T) {
 			bells := 0
 			writeTerminalBell = func() { bells++ }
 
-			cmd := needReviewBellCmd(tt.hadOld, tt.oldStatus, tt.nextStatus)
+			cmd := needReviewBellCmd(tt.hadOld, tt.oldStatus, tt.nextStatus, false)
 			if cmd == nil {
 				if tt.wantBell {
 					t.Fatalf("needReviewBellCmd() = nil, want bell command")
@@ -2319,6 +2319,22 @@ func TestNeedReviewBellOnlyWhenEnteringNeedReview(t *testing.T) {
 				t.Fatalf("bells = %d, want 1", bells)
 			}
 		})
+	}
+}
+
+func TestNeedReviewBellSkipsWhenHermesHandlesReview(t *testing.T) {
+	cmd := needReviewBellCmd(true, sessionWorking, sessionNeedReview, true)
+	if cmd != nil {
+		t.Fatalf("needReviewBellCmd() with Hermes handling = %#v, want nil", cmd)
+	}
+}
+
+func TestNeedReviewTerminalAlertSequenceSetsTabTitle(t *testing.T) {
+	sequence := string(needReviewTerminalAlertSequence())
+	for _, want := range []string{"\a", "\x1b]1;tmux-kanban: NEED REVIEW\x1b\\", "\x1b]2;tmux-kanban: NEED REVIEW\x1b\\"} {
+		if !strings.Contains(sequence, want) {
+			t.Fatalf("terminal alert sequence missing %q: %#v", want, sequence)
+		}
 	}
 }
 
@@ -2391,6 +2407,9 @@ func TestSplitWorkspaceHeightsAddsUpToRequestedHeight(t *testing.T) {
 	if previewHeight <= hostHeight {
 		t.Fatalf("36 split to host=%d preview=%d, want preview larger", hostHeight, previewHeight)
 	}
+	if hostHeight != 8 {
+		t.Fatalf("36 split to host=%d preview=%d, want terminal preview raised to host minimum", hostHeight, previewHeight)
+	}
 }
 
 func TestWorkspacePanelsRenderToRequestedHeight(t *testing.T) {
@@ -2446,15 +2465,18 @@ func TestMainSessionKanbanLinesStayWithinPanelWidth(t *testing.T) {
 }
 
 func TestSidePanelWidthsLeavePreviewRoom(t *testing.T) {
-	for _, totalWidth := range []int{140, 148, 160, 200} {
+	for _, totalWidth := range []int{140, 148, 160, 200, 240} {
 		left := threeColumnSideWidth(totalWidth)
-		right := threeColumnSideWidth(totalWidth)
+		right := threeColumnActivityWidth(totalWidth, left)
 		preview := totalWidth - left - right - 4
 		if left < 38 || right < 38 {
 			t.Fatalf("three-column sides at %d = %d/%d, want at least 38", totalWidth, left, right)
 		}
 		if preview < 60 {
 			t.Fatalf("three-column preview at %d = %d, want at least 60", totalWidth, preview)
+		}
+		if right*3 < preview {
+			t.Fatalf("three-column activity at %d = %d, want at least one third of preview %d", totalWidth, right, preview)
 		}
 	}
 
