@@ -12,7 +12,6 @@ const (
 	KeyHermes      = "h"
 	KeyRelay       = "x"
 	KeyMessage     = "m"
-	KeyMain        = "g"
 	KeySnapshot    = "d"
 	KeySnapshot2   = "D"
 )

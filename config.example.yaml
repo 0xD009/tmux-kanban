@@ -14,7 +14,7 @@ main_agent:
   enabled: true
   host: local
   session: tmux-kanban-main
-  # Main is shown separately as a conductor with tmux-kanban-review skill + JSON CLI abilities.
+  # Optional conductor session used by tmux-kanban-review skill + JSON CLI abilities.
   agent: codex # codex or claude-code
   command: codex
   args: []
@@ -62,10 +62,28 @@ agent_mesh:
 hermes:
   enabled: false
   auto_review: false
+  done_advice: false
+  auto_done: false
+  idle_advice: false
+  auto_idle: false
   command: hermes
   args:
     - --oneshot
   timeout_seconds: 120
+  # Empty uses ~/.local/state/tmux-kanban/hermes-worklog.jsonl
+  work_log: ""
+  scopes:
+    # Later matching scopes override earlier/global settings.
+    - host: all
+      auto_review: false
+    - host: gpu-a
+      enabled: true
+      auto_done: false
+      auto_idle: false
+    - host: local
+      session: tmux-kanban-main
+      enabled: true
+      auto_done: true
 
 notification:
   qq_enabled: false

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -64,11 +65,28 @@ type AgentMailConfig struct {
 }
 
 type HermesConfig struct {
-	Enabled        bool     `yaml:"enabled"`
-	AutoReview     bool     `yaml:"auto_review"`
-	Command        string   `yaml:"command"`
-	Args           []string `yaml:"args"`
-	TimeoutSeconds int      `yaml:"timeout_seconds"`
+	Enabled        bool                `yaml:"enabled"`
+	AutoReview     bool                `yaml:"auto_review"`
+	DoneAdvice     bool                `yaml:"done_advice"`
+	AutoDone       bool                `yaml:"auto_done"`
+	IdleAdvice     bool                `yaml:"idle_advice"`
+	AutoIdle       bool                `yaml:"auto_idle"`
+	Command        string              `yaml:"command"`
+	Args           []string            `yaml:"args"`
+	TimeoutSeconds int                 `yaml:"timeout_seconds"`
+	WorkLog        string              `yaml:"work_log"`
+	Scopes         []HermesScopeConfig `yaml:"scopes"`
+}
+
+type HermesScopeConfig struct {
+	Host       string `yaml:"host"`
+	Session    string `yaml:"session"`
+	Enabled    *bool  `yaml:"enabled"`
+	AutoReview *bool  `yaml:"auto_review"`
+	DoneAdvice *bool  `yaml:"done_advice"`
+	AutoDone   *bool  `yaml:"auto_done"`
+	IdleAdvice *bool  `yaml:"idle_advice"`
+	AutoIdle   *bool  `yaml:"auto_idle"`
 }
 
 type NotificationConfig struct {
@@ -110,6 +128,7 @@ func Default() Config {
 			Command:        "hermes",
 			Args:           []string{"--oneshot"},
 			TimeoutSeconds: 120,
+			WorkLog:        "~/.local/state/tmux-kanban/hermes-worklog.jsonl",
 		},
 	}
 }
@@ -182,6 +201,9 @@ func Load(path string) (Config, error) {
 	if cfg.Hermes.TimeoutSeconds <= 0 {
 		cfg.Hermes.TimeoutSeconds = Default().Hermes.TimeoutSeconds
 	}
+	if cfg.Hermes.WorkLog == "" {
+		cfg.Hermes.WorkLog = Default().Hermes.WorkLog
+	}
 
 	return cfg, nil
 }
@@ -192,5 +214,76 @@ func DefaultMainAgentCommand(agent string) string {
 		return "claude"
 	default:
 		return "codex"
+	}
+}
+
+func HostDisplayName(host Host) string {
+	if host.Name != "" {
+		return host.Name
+	}
+	if host.SSH != "" {
+		return host.SSH
+	}
+	return "local"
+}
+
+func (cfg HermesConfig) Resolve(host Host, session string) HermesConfig {
+	resolved := cfg
+	resolved.Scopes = nil
+	for _, scope := range cfg.Scopes {
+		if !scope.Matches(host, session) {
+			continue
+		}
+		scope.Apply(&resolved)
+	}
+	return resolved
+}
+
+func (scope HermesScopeConfig) Matches(host Host, session string) bool {
+	scopeHost := strings.TrimSpace(scope.Host)
+	scopeSession := strings.TrimSpace(scope.Session)
+	if !hermesScopeHostMatches(scopeHost, host) {
+		return false
+	}
+	if scopeSession == "" || isHermesAllScope(scopeSession) {
+		return true
+	}
+	session = strings.TrimSpace(session)
+	if scopedHost, scopedSession, ok := strings.Cut(scopeSession, "/"); ok {
+		if !hermesScopeHostMatches(scopedHost, host) {
+			return false
+		}
+		return isHermesAllScope(scopedSession) || strings.TrimSpace(scopedSession) == session
+	}
+	return scopeSession == session
+}
+
+func hermesScopeHostMatches(scopeHost string, host Host) bool {
+	scopeHost = strings.TrimSpace(scopeHost)
+	return scopeHost == "" || isHermesAllScope(scopeHost) || scopeHost == host.Name || scopeHost == host.SSH || scopeHost == HostDisplayName(host)
+}
+
+func isHermesAllScope(value string) bool {
+	return strings.EqualFold(strings.TrimSpace(value), "all")
+}
+
+func (scope HermesScopeConfig) Apply(cfg *HermesConfig) {
+	if scope.Enabled != nil {
+		cfg.Enabled = *scope.Enabled
+	}
+	if scope.AutoReview != nil {
+		cfg.AutoReview = *scope.AutoReview
+	}
+	if scope.DoneAdvice != nil {
+		cfg.DoneAdvice = *scope.DoneAdvice
+	}
+	if scope.AutoDone != nil {
+		cfg.AutoDone = *scope.AutoDone
+	}
+	if scope.IdleAdvice != nil {
+		cfg.IdleAdvice = *scope.IdleAdvice
+	}
+	if scope.AutoIdle != nil {
+		cfg.AutoIdle = *scope.AutoIdle
 	}
 }

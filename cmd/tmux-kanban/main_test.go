@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"tmux-kanban/internal/config"
+	"tmux-kanban/internal/hermeslog"
 	"tmux-kanban/internal/mesh"
 	"tmux-kanban/internal/tmuxscan"
 )
@@ -1012,190 +1014,6 @@ func TestSendResultStatusUsesFriendlyPaneLabel(t *testing.T) {
 	}
 }
 
-func TestMainSessionKeyStartsMainRoom(t *testing.T) {
-	cfg := config.Default()
-	host := config.Host{Name: "local", Local: true}
-	m := model{
-		cfg:   cfg,
-		hosts: []hostState{{host: host, loaded: true}},
-	}
-
-	nextModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")})
-	if cmd != nil {
-		t.Fatalf("main room command = %#v, want no main session agent command", cmd)
-	}
-	next := nextModel.(model)
-	if !next.mainActive {
-		t.Fatalf("mainActive = false, want true")
-	}
-	if next.viewMode != viewMain {
-		t.Fatalf("view mode = %q, want main", next.viewMode)
-	}
-	if !next.compose.active || next.compose.label != "Main Room" {
-		t.Fatalf("compose = %#v, want active local main room composer", next.compose)
-	}
-	if row, ok := next.activePreviewRow(); ok {
-		t.Fatalf("activePreviewRow() = %#v, true; want no main preview row", row)
-	}
-}
-
-func TestMainRoomRendersChatAndParticipants(t *testing.T) {
-	host := config.Host{Name: "local", Local: true}
-	session := tmuxscan.Session{
-		ID:   "$1",
-		Name: "agents",
-		Windows: []tmuxscan.Window{{
-			ID:    "@1",
-			Index: "0",
-			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex}},
-		}},
-	}
-	key := sessionStatusKey(host, session)
-	m := model{
-		cfg: config.Default(),
-		hosts: []hostState{{
-			host:     host,
-			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}},
-			loaded:   true,
-		}},
-		statuses:      map[string]sessionStatus{key: sessionNeedReview},
-		reviewTargets: map[string]selectedAgentTarget{key: {hostIndex: 0, target: "%1", agent: tmuxscan.AgentCodex}},
-		viewMode:      viewMain,
-		mainActive:    true,
-		mainMessages: []mainMessage{{
-			At:     time.Date(2026, 5, 21, 10, 0, 0, 0, time.Local),
-			Author: "You",
-			Role:   "user",
-			Text:   "帮我看一下哪个 review 最重要",
-		}},
-		compose: composeState{active: true, label: "Main Room"},
-	}
-
-	view := m.renderMainRoom(120, 30, 5, 1)
-	plain := ansi.Strip(view)
-	for _, want := range []string{"Main Room", "Participants", "You", "No agent harness", "agents", "帮我看一下"} {
-		if !strings.Contains(plain, want) {
-			t.Fatalf("main room missing %q:\n%s", want, plain)
-		}
-	}
-}
-
-func TestMainRoomEnterAppendsUserMessageAndKeepsComposer(t *testing.T) {
-	host := config.Host{Name: "local", Local: true}
-	m := model{
-		cfg:      config.Default(),
-		hosts:    []hostState{{host: host, loaded: true}},
-		viewMode: viewMain,
-		compose: composeState{
-			active: true,
-			label:  "Main Room",
-			text:   "帮我看 review",
-			cursor: len([]rune("帮我看 review")),
-		},
-	}
-
-	nextModel, cmd := m.updateCompose(tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil {
-		t.Fatalf("main room command = %#v, want no agent command without Hermes", cmd)
-	}
-	next := nextModel.(model)
-	if !next.compose.active {
-		t.Fatalf("compose.active = false, want main room composer to stay focused")
-	}
-	if next.compose.text != "" || next.compose.cursor != 0 {
-		t.Fatalf("compose after send = %#v, want cleared focused composer", next.compose)
-	}
-	if len(next.mainMessages) != 2 || next.mainMessages[0].Author != "You" {
-		t.Fatalf("main messages = %#v, want user message plus empty-harness system message", next.mainMessages)
-	}
-	if next.mainMessages[0].Text != "帮我看 review" {
-		t.Fatalf("main message text = %q, want sent text", next.mainMessages[0].Text)
-	}
-	if next.mainMessages[1].Author != "system" || !strings.Contains(next.mainMessages[1].Text, "No agent harness") {
-		t.Fatalf("system message = %#v, want no harness note", next.mainMessages[1])
-	}
-}
-
-func TestMainRoomUsesHermesWhenEnabled(t *testing.T) {
-	host := config.Host{Name: "local", Local: true}
-	m := model{
-		cfg: config.Config{
-			Hermes: config.HermesConfig{
-				Enabled:        true,
-				Command:        "hermes",
-				Args:           []string{"--oneshot"},
-				TimeoutSeconds: 1,
-			},
-		},
-		hosts:    []hostState{{host: host, loaded: true}},
-		viewMode: viewMain,
-		compose: composeState{
-			active: true,
-			label:  "Main Room",
-			text:   "现在该处理什么",
-			cursor: len([]rune("现在该处理什么")),
-		},
-	}
-
-	nextModel, cmd := m.updateCompose(tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd == nil {
-		t.Fatalf("main room Hermes command = nil, want command")
-	}
-	next := nextModel.(model)
-	if len(next.mainMessages) != 2 {
-		t.Fatalf("main messages = %#v, want user message and Hermes thinking", next.mainMessages)
-	}
-	if next.mainMessages[0].Author != "You" || next.mainMessages[1].Author != "Hermes" {
-		t.Fatalf("main messages = %#v, want You then Hermes", next.mainMessages)
-	}
-	if next.mainMessages[1].Text != "thinking..." {
-		t.Fatalf("Hermes placeholder = %q, want thinking", next.mainMessages[1].Text)
-	}
-}
-
-func TestMainHermesResultReplacesThinkingMessage(t *testing.T) {
-	m := model{
-		mainMessages: []mainMessage{
-			{Author: "You", Role: "user", Text: "现在该处理什么"},
-			{Author: "Hermes", Role: "conductor", Text: "thinking..."},
-		},
-	}
-
-	nextModel, _ := m.Update(mainHermesResult{text: "先处理 need review 队列第一项。"})
-	next := nextModel.(model)
-	if len(next.mainMessages) != 2 {
-		t.Fatalf("main messages = %#v, want thinking replaced in place", next.mainMessages)
-	}
-	if next.mainMessages[1].Author != "Hermes" || next.mainMessages[1].Role != "conductor" {
-		t.Fatalf("Hermes message = %#v, want conductor reply", next.mainMessages[1])
-	}
-	if next.mainMessages[1].Text != "先处理 need review 队列第一项。" {
-		t.Fatalf("Hermes text = %q, want reply", next.mainMessages[1].Text)
-	}
-}
-
-func TestExecuteMainClaudeCommandSwitchesConfiguredAgent(t *testing.T) {
-	host := config.Host{Name: "local", Local: true}
-	m := model{
-		cfg:   config.Default(),
-		hosts: []hostState{{host: host, loaded: true}},
-	}
-
-	next, cmd := m.executeCommand("main claude")
-	if cmd != nil {
-		t.Fatalf("main claude command = %#v, want no main session agent command", cmd)
-	}
-	if next.cfg.MainAgent.Agent != "claude-code" {
-		t.Fatalf("main agent = %q, want claude-code", next.cfg.MainAgent.Agent)
-	}
-	if next.cfg.MainAgent.Command != "claude" {
-		t.Fatalf("main command = %q, want claude", next.cfg.MainAgent.Command)
-	}
-	if !next.mainActive {
-		t.Fatalf("mainActive = false, want true")
-	}
-}
-
 func TestHermesReviewPromptIncludesChoices(t *testing.T) {
 	item := reviewItem{
 		HostName:    "local",
@@ -1306,6 +1124,67 @@ func TestReviewItemScopePrefersTargetKeyWindowAndPane(t *testing.T) {
 	}
 }
 
+func TestSelectedMemoryUpdateTargetBuildsRequestedScope(t *testing.T) {
+	host := config.Host{Name: "local", Local: true}
+	window := tmuxscan.Window{
+		ID:     "@1",
+		Index:  "0",
+		Active: true,
+		Panes:  []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex, Active: true}},
+	}
+	session := tmuxscan.Session{ID: "$1", Name: "agents", Windows: []tmuxscan.Window{window}}
+	m := model{
+		hosts: []hostState{{
+			host:     host,
+			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}},
+			loaded:   true,
+		}},
+		expanded: map[string]bool{"host:0": true, "host:0:session:$1": true, "host:0:session:$1:window:@1": true},
+		cursor:   1,
+		viewMode: viewTree,
+	}
+
+	_, _, scope, ok := m.selectedMemoryUpdateTarget("pane")
+	if !ok {
+		t.Fatalf("selectedMemoryUpdateTarget() ok = false, want true")
+	}
+	if scope.Host != "local" || scope.Session != "agents" || scope.Window != "@1" || scope.Pane != "%1" {
+		t.Fatalf("pane scope = %#v", scope)
+	}
+	_, _, scope, ok = m.selectedMemoryUpdateTarget("session")
+	if !ok {
+		t.Fatalf("selectedMemoryUpdateTarget(session) ok = false, want true")
+	}
+	if scope.Host != "local" || scope.Session != "agents" || scope.Window != "" || scope.Pane != "" {
+		t.Fatalf("session scope = %#v", scope)
+	}
+}
+
+func TestHermesMemoryUpdatePromptIncludesSkillAndScope(t *testing.T) {
+	ref := selectedSessionRef{
+		Host:    config.Host{Name: "local", Local: true},
+		Session: tmuxscan.Session{Name: "agents"},
+	}
+	target := selectedAgentTarget{target: "%1", agent: tmuxscan.AgentCodex}
+	scope := mesh.Scope{Host: "local", Session: "agents"}
+	prompt := hermesMemoryUpdatePrompt(ref, target, scope, []string{"task completed"}, "memory skill text", []mesh.MemoryNode{{
+		Scope:   mesh.Scope{Host: "local"},
+		Summary: "host memory",
+	}}, "")
+	for _, want := range []string{
+		"Memory skill:",
+		"memory skill text",
+		"Target memory scope:",
+		"session/local/agents",
+		"host/local: host memory",
+		"task completed",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, prompt)
+		}
+	}
+}
+
 func TestParseHermesAutoReviewAction(t *testing.T) {
 	tests := []struct {
 		text       string
@@ -1355,7 +1234,7 @@ func TestApplyHermesAutoReviewChoosesVisibleChoice(t *testing.T) {
 		Row:         row{hostIndex: 0, attachTarget: "%1"},
 	}
 	m := model{
-		cfg:           config.Config{Hermes: config.HermesConfig{AutoReview: true}},
+		cfg:           config.Config{Hermes: config.HermesConfig{Enabled: true, AutoReview: true}},
 		hosts:         []hostState{{host: host, snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}}, loaded: true}},
 		statuses:      map[string]sessionStatus{key: sessionNeedReview},
 		reviewTargets: map[string]selectedAgentTarget{key: {hostIndex: 0, target: "%1", agent: tmuxscan.AgentCodex}},
@@ -1420,6 +1299,150 @@ func TestAutoHermesReviewCmdStartsWhenEnteringNeedReview(t *testing.T) {
 	again := m.autoHermesReviewCmd(true, sessionNeedReview, sessionNeedReview, key)
 	if again != nil {
 		t.Fatalf("autoHermesReviewCmd() while already need-review = %#v, want nil", again)
+	}
+}
+
+func TestAutoHermesReviewCmdUsesSessionScope(t *testing.T) {
+	host := config.Host{Name: "local", Local: true}
+	session := tmuxscan.Session{
+		ID:   "$1",
+		Name: "agents",
+		Windows: []tmuxscan.Window{{
+			ID:    "@1",
+			Index: "0",
+			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex}},
+		}},
+	}
+	key := sessionStatusKey(host, session)
+	m := model{
+		cfg: config.Config{Hermes: config.HermesConfig{
+			Enabled:        false,
+			AutoReview:     false,
+			Command:        "hermes",
+			Args:           []string{"--oneshot"},
+			TimeoutSeconds: 120,
+			Scopes: []config.HermesScopeConfig{{
+				Host:       "local",
+				Session:    "agents",
+				Enabled:    boolSettingPtr(true),
+				AutoReview: boolSettingPtr(true),
+			}},
+		}},
+		hosts:         []hostState{{host: host, snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}}, loaded: true}},
+		statuses:      map[string]sessionStatus{key: sessionNeedReview},
+		reviewTargets: map[string]selectedAgentTarget{key: {hostIndex: 0, target: "%1", agent: tmuxscan.AgentCodex}},
+		hermes:        map[string]hermesAdvice{},
+	}
+
+	cmd := m.autoHermesReviewCmd(true, sessionWorking, sessionNeedReview, key)
+	if cmd == nil {
+		t.Fatalf("autoHermesReviewCmd() = nil, want scoped Hermes command")
+	}
+}
+
+func TestParseHermesAutoNextStepAction(t *testing.T) {
+	tests := []struct {
+		text        string
+		wantOK      bool
+		wantKind    string
+		wantMessage string
+	}{
+		{text: "SEND: 继续执行下一项任务", wantOK: true, wantKind: "send", wantMessage: "继续执行下一项任务"},
+		{text: "WAIT: 没有明确下一步", wantOK: false},
+		{text: "ASK: 需要产品确认", wantOK: false},
+		{text: "继续下一步", wantOK: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.text, func(t *testing.T) {
+			got, ok := parseHermesAutoNextStepAction(tt.text)
+			if ok != tt.wantOK {
+				t.Fatalf("ok = %v, want %v; action = %#v", ok, tt.wantOK, got)
+			}
+			if !ok {
+				return
+			}
+			if got.kind != tt.wantKind || got.message != tt.wantMessage {
+				t.Fatalf("action = %#v, want kind %q message %q", got, tt.wantKind, tt.wantMessage)
+			}
+		})
+	}
+}
+
+func TestAutoHermesNextStepCmdStartsWhenEnteringDone(t *testing.T) {
+	host := config.Host{Name: "local", Local: true}
+	session := tmuxscan.Session{
+		ID:   "$1",
+		Name: "agents",
+		Windows: []tmuxscan.Window{{
+			ID:    "@1",
+			Index: "0",
+			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex, Active: true}},
+		}},
+	}
+	key := sessionStatusKey(host, session)
+	m := model{
+		cfg: config.Config{Hermes: config.HermesConfig{
+			Enabled:        true,
+			DoneAdvice:     true,
+			Command:        "hermes",
+			Args:           []string{"--oneshot"},
+			TimeoutSeconds: 120,
+		}},
+		hosts:  []hostState{{host: host, snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}}, loaded: true}},
+		hermes: map[string]hermesAdvice{},
+	}
+
+	cmd := m.autoHermesNextStepCmd(true, sessionWorking, sessionDone, key)
+	if cmd == nil {
+		t.Fatalf("autoHermesNextStepCmd() = nil, want Hermes command")
+	}
+	if !m.hermes[key].loading {
+		t.Fatalf("hermes[%q].loading = false, want true", key)
+	}
+
+	again := m.autoHermesNextStepCmd(true, sessionDone, sessionDone, key)
+	if again != nil {
+		t.Fatalf("autoHermesNextStepCmd() while already done = %#v, want nil", again)
+	}
+}
+
+func TestApplyHermesAutoNextStepSendsWhenSuggested(t *testing.T) {
+	host := config.Host{Name: "local", Local: true}
+	session := tmuxscan.Session{
+		ID:   "$1",
+		Name: "agents",
+		Windows: []tmuxscan.Window{{
+			ID:    "@1",
+			Index: "0",
+			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex, Active: true}},
+		}},
+	}
+	key := sessionStatusKey(host, session)
+	m := model{
+		cfg:      config.Config{Hermes: config.HermesConfig{Enabled: true, AutoDone: true}},
+		hosts:    []hostState{{host: host, snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}}, loaded: true}},
+		statuses: map[string]sessionStatus{key: sessionDone},
+	}
+
+	cmd := m.applyHermesAutoNextStep(hermesNextStepResult{
+		key:         key,
+		status:      sessionDone,
+		text:        "SEND: 继续处理 README 里的下一项",
+		auto:        true,
+		host:        host,
+		hostName:    "local",
+		sessionName: "agents",
+		target:      selectedAgentTarget{hostIndex: 0, target: "%1", agent: tmuxscan.AgentCodex},
+	})
+	if cmd == nil {
+		t.Fatalf("applyHermesAutoNextStep() cmd = nil, want send command")
+	}
+	if got := m.statuses[key]; got != sessionWorking {
+		t.Fatalf("status = %q, want working", got)
+	}
+	if len(m.activities) != 1 || m.activities[0].State != "auto sent" {
+		t.Fatalf("activities = %#v, want auto sent activity", m.activities)
 	}
 }
 
@@ -1489,7 +1512,9 @@ func TestHermesQueryResultRecordsAnswerInActivity(t *testing.T) {
 		}},
 	}
 	key := sessionStatusKey(host, session)
+	workLog := filepath.Join(t.TempDir(), "hermes.jsonl")
 	m := model{
+		cfg: config.Config{Hermes: config.HermesConfig{WorkLog: workLog}},
 		hosts: []hostState{{
 			host:     host,
 			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}},
@@ -1503,8 +1528,11 @@ func TestHermesQueryResultRecordsAnswerInActivity(t *testing.T) {
 		key:  key,
 		text: "CHOOSE 1\nThe command matches the visible approval prompt.",
 		item: reviewItem{
-			SessionKey: key,
-			Row:        row{attachTarget: "%1"},
+			SessionKey:  key,
+			HostName:    "local",
+			SessionName: "agents",
+			Agent:       tmuxscan.AgentCodex,
+			Row:         row{attachTarget: "%1"},
 		},
 	})
 	next := nextModel.(model)
@@ -1517,6 +1545,17 @@ func TestHermesQueryResultRecordsAnswerInActivity(t *testing.T) {
 	}
 	if !strings.Contains(activity.Message, "CHOOSE 1") || !strings.Contains(activity.Message, "approval prompt") {
 		t.Fatalf("activity message = %q, want Hermes answer text", activity.Message)
+	}
+	data, err := os.ReadFile(workLog)
+	if err != nil {
+		t.Fatalf("ReadFile(workLog) error = %v", err)
+	}
+	var entry hermeslog.Entry
+	if err := json.Unmarshal(data, &entry); err != nil {
+		t.Fatalf("Unmarshal(workLog) error = %v; data = %q", err, string(data))
+	}
+	if entry.Flow != "review" || entry.Event != "reply" || entry.Advice == "" || entry.Host != "local" || entry.Session != "agents" {
+		t.Fatalf("work log entry = %#v", entry)
 	}
 }
 
@@ -1540,7 +1579,7 @@ func TestApplyHermesAutoReviewSkipsWhenSuggested(t *testing.T) {
 		Row:         row{hostIndex: 0, attachTarget: "%1"},
 	}
 	m := model{
-		cfg:           config.Config{Hermes: config.HermesConfig{AutoReview: true}},
+		cfg:           config.Config{Hermes: config.HermesConfig{Enabled: true, AutoReview: true}},
 		hosts:         []hostState{{host: host, snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}}, loaded: true}},
 		statuses:      map[string]sessionStatus{key: sessionNeedReview},
 		reviewTargets: map[string]selectedAgentTarget{key: {hostIndex: 0, target: "%1", agent: tmuxscan.AgentCodex}},
@@ -1649,41 +1688,25 @@ func TestExecuteCommandTogglesRuntimeSettings(t *testing.T) {
 	if !next.cfg.Hermes.AutoReview {
 		t.Fatalf("hermes auto_review = false, want true")
 	}
-}
-
-func TestExecuteCommandConfiguresMainAgent(t *testing.T) {
-	m := initialModel(config.Default())
-
-	next, cmd := m.executeCommand("main host nebula")
-	if cmd != nil {
-		t.Fatalf("main host command returned cmd, want nil")
+	next, _ = next.executeCommand("set hermes.auto_review all off")
+	if next.cfg.Hermes.AutoReview {
+		t.Fatalf("hermes auto_review = true, want false after all off")
 	}
-	if next.cfg.MainAgent.Host != "nebula" {
-		t.Fatalf("main host = %q, want nebula", next.cfg.MainAgent.Host)
+	next, _ = next.executeCommand("set hermes.auto_done session local/agents off")
+	if len(next.cfg.Hermes.Scopes) != 1 {
+		t.Fatalf("hermes scopes = %d, want 1", len(next.cfg.Hermes.Scopes))
 	}
-
-	next, cmd = next.executeCommand("main session conductor")
-	if cmd != nil {
-		t.Fatalf("main session command returned cmd, want nil")
+	scope := next.cfg.Hermes.Scopes[0]
+	if scope.Host != "local" || scope.Session != "agents" || scope.AutoDone == nil || *scope.AutoDone {
+		t.Fatalf("hermes scope = %#v, want local/agents auto_done=false", scope)
 	}
-	if next.cfg.MainAgent.Session != "conductor" {
-		t.Fatalf("main session = %q, want conductor", next.cfg.MainAgent.Session)
+	next, _ = next.executeCommand("set hermes.auto_idle host all off")
+	if len(next.cfg.Hermes.Scopes) != 2 {
+		t.Fatalf("hermes scopes = %d, want 2", len(next.cfg.Hermes.Scopes))
 	}
-
-	next, cmd = next.executeCommand("main command codex --profile kanban")
-	if cmd != nil {
-		t.Fatalf("main command returned cmd, want nil")
-	}
-	if next.cfg.MainAgent.Command != "codex" || len(next.cfg.MainAgent.Args) != 2 {
-		t.Fatalf("main command config = %#v, want codex with two args", next.cfg.MainAgent)
-	}
-
-	next, cmd = next.executeCommand("set main.agent claude")
-	if cmd != nil {
-		t.Fatalf("set main.agent returned cmd, want nil")
-	}
-	if next.cfg.MainAgent.Agent != "claude-code" || next.cfg.MainAgent.Command != "claude" {
-		t.Fatalf("main agent config = %#v, want claude-code/claude", next.cfg.MainAgent)
+	scope = next.cfg.Hermes.Scopes[1]
+	if scope.Host != "all" || scope.Session != "" || scope.AutoIdle == nil || *scope.AutoIdle {
+		t.Fatalf("hermes all-host scope = %#v, want host all auto_idle=false", scope)
 	}
 }
 

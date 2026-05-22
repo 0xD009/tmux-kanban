@@ -110,17 +110,18 @@ func (m model) sessionRefForRow(selected row) (selectedSessionRef, bool) {
 	}
 }
 
-func (m *model) cycleSelectedSessionStatus() {
+func (m *model) cycleSelectedSessionStatus() tea.Cmd {
 	ref, ok := m.selectedSessionRef()
 	if !ok {
 		m.status = "select a session, window, or pane to cycle status"
-		return
+		return nil
 	}
 
 	if m.statuses == nil {
 		m.statuses = map[string]sessionStatus{}
 	}
 
+	oldStatus, hadOldStatus := m.statuses[ref.Key]
 	next := nextSessionStatus(m.sessionStatusForKey(ref.Key))
 	m.statuses[ref.Key] = next
 	delete(m.statusStreaks, ref.Key)
@@ -137,4 +138,5 @@ func (m *model) cycleSelectedSessionStatus() {
 		State:   statusLabel(next),
 		Message: "manual status cycle",
 	})
+	return m.autoHermesNextStepCmd(hadOldStatus, oldStatus, next, ref.Key)
 }

@@ -52,7 +52,6 @@ func (m *model) addAgentActivity(activity agentActivity) {
 	if len(m.activities) > maxAgentActivities {
 		m.activities = append([]agentActivity(nil), m.activities[len(m.activities)-maxAgentActivities:]...)
 	}
-	m.addMainMessageForActivity(activity)
 }
 
 func (m model) shouldLogPolledStatusChange(hadOld bool, oldStatus sessionStatus, nextStatus sessionStatus) bool {

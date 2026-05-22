@@ -3,12 +3,16 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"tmux-kanban/internal/config"
 )
 
-func (m *model) executeSetCommand(args []string) {
+func (m *model) executeSetCommand(args []string) tea.Cmd {
 	if len(args) < 2 {
-		m.status = "usage: set qq|hermes|hermes.auto_review|status <on|off|value>"
-		return
+		m.status = "usage: set qq|hermes|hermes.auto_review|hermes.done_advice|hermes.auto_done|hermes.idle_advice|hermes.auto_idle|status <on|off|value>"
+		return nil
 	}
 
 	key := strings.ToLower(args[0])
@@ -20,15 +24,47 @@ func (m *model) executeSetCommand(args []string) {
 			m.status = "QQ notification " + onOff(value)
 		})
 	case "hermes", "hermes.enabled":
-		m.executeBoolSettingCommand("hermes", valueArgs, func(value bool) {
+		m.setHermesScopedBool(valueArgs, func(value bool) {
 			m.cfg.Hermes.Enabled = value
 			m.status = "Hermes " + onOff(value)
-		})
+		}, func(scope *config.HermesScopeConfig, value bool) {
+			scope.Enabled = boolSettingPtr(value)
+		}, "hermes")
 	case "hermes.auto", "hermes.auto_review", "hermes.review_auto", "auto_review":
-		m.executeBoolSettingCommand("hermes.auto_review", valueArgs, func(value bool) {
+		m.setHermesScopedBool(valueArgs, func(value bool) {
 			m.cfg.Hermes.AutoReview = value
 			m.status = "Hermes auto review " + onOff(value)
-		})
+		}, func(scope *config.HermesScopeConfig, value bool) {
+			scope.AutoReview = boolSettingPtr(value)
+		}, "hermes.auto_review")
+	case "hermes.done_advice", "hermes.done", "hermes.next_done", "done_advice":
+		m.setHermesScopedBool(valueArgs, func(value bool) {
+			m.cfg.Hermes.DoneAdvice = value
+			m.status = "Hermes done advice " + onOff(value)
+		}, func(scope *config.HermesScopeConfig, value bool) {
+			scope.DoneAdvice = boolSettingPtr(value)
+		}, "hermes.done_advice")
+	case "hermes.auto_done", "hermes.done_auto", "auto_done":
+		m.setHermesScopedBool(valueArgs, func(value bool) {
+			m.cfg.Hermes.AutoDone = value
+			m.status = "Hermes auto done " + onOff(value)
+		}, func(scope *config.HermesScopeConfig, value bool) {
+			scope.AutoDone = boolSettingPtr(value)
+		}, "hermes.auto_done")
+	case "hermes.idle_advice", "hermes.idle", "hermes.next_idle", "idle_advice":
+		m.setHermesScopedBool(valueArgs, func(value bool) {
+			m.cfg.Hermes.IdleAdvice = value
+			m.status = "Hermes idle advice " + onOff(value)
+		}, func(scope *config.HermesScopeConfig, value bool) {
+			scope.IdleAdvice = boolSettingPtr(value)
+		}, "hermes.idle_advice")
+	case "hermes.auto_idle", "hermes.idle_auto", "auto_idle":
+		m.setHermesScopedBool(valueArgs, func(value bool) {
+			m.cfg.Hermes.AutoIdle = value
+			m.status = "Hermes auto idle " + onOff(value)
+		}, func(scope *config.HermesScopeConfig, value bool) {
+			scope.AutoIdle = boolSettingPtr(value)
+		}, "hermes.auto_idle")
 	case "mesh", "agent_mesh", "agent_mesh.enabled", "mesh.enabled":
 		m.executeBoolSettingCommand("mesh", valueArgs, func(value bool) {
 			m.cfg.AgentMesh.Enabled = value
@@ -42,7 +78,7 @@ func (m *model) executeSetCommand(args []string) {
 	case "mesh.default", "mesh.default_agent", "agent_mesh.default_agent":
 		if len(valueArgs) != 1 {
 			m.status = "usage: set mesh.default_agent codex|claude-code"
-			return
+			return nil
 		}
 		m.cfg.AgentMesh.DefaultAgent = normalizeConfigAgent(valueArgs[0])
 		m.ensureMeshPolicyDefaults()
@@ -61,45 +97,16 @@ func (m *model) executeSetCommand(args []string) {
 	case "mesh.mail_dir", "agent_mesh.mail.dir", "mesh.mail.dir":
 		m.cfg.AgentMesh.Mail.Dir = configValueOrEmpty(valueArgs)
 		m.status = "agent mesh mail dir " + emptyValueLabel(m.cfg.AgentMesh.Mail.Dir)
-	case "main", "main_agent", "main_agent.enabled", "main.enabled":
-		m.executeBoolSettingCommand("main", valueArgs, func(value bool) {
-			m.cfg.MainAgent.Enabled = value
-			if !value {
-				m.mainActive = false
-				m.preview = previewState{}
-			}
-			m.status = "main agent " + onOff(value)
-		})
-	case "main.agent", "main_agent.agent":
-		if len(valueArgs) != 1 {
-			m.status = "usage: set main.agent codex|claude-code"
-			return
-		}
-		m.setMainAgent(valueArgs[0])
-		m.status = "main agent set to " + m.cfg.MainAgent.Agent
-	case "main.host", "main_agent.host":
-		m.cfg.MainAgent.Host = configValueOrEmpty(valueArgs)
-		m.preview = previewState{}
-		m.status = "main host set to " + emptyValueLabel(m.cfg.MainAgent.Host)
-	case "main.session", "main_agent.session":
-		m.cfg.MainAgent.Session = configValueOrEmpty(valueArgs)
-		m.preview = previewState{}
-		m.status = "main session set to " + emptyValueLabel(m.cfg.MainAgent.Session)
-	case "main.command", "main_agent.command":
-		if len(valueArgs) == 0 {
-			m.status = "usage: set main.command <command> [args...]"
-			return
-		}
-		m.cfg.MainAgent.Command = valueArgs[0]
-		m.cfg.MainAgent.Args = append([]string(nil), valueArgs[1:]...)
-		m.status = "main command set to " + strings.Join(valueArgs, " ")
 	case "status":
-		m.executeStatusCommand(valueArgs)
+		return m.executeStatusCommand(valueArgs)
 	case "view":
-		m.executeViewCommand(valueArgs)
+		next, cmd := m.executeViewCommand(valueArgs)
+		*m = next
+		return cmd
 	default:
 		m.status = "unknown setting: " + args[0]
 	}
+	return nil
 }
 
 func (m *model) executeBoolSettingCommand(name string, args []string, apply func(bool)) {
@@ -115,23 +122,22 @@ func (m *model) executeBoolSettingCommand(name string, args []string, apply func
 	apply(value)
 }
 
-func (m *model) executeStatusCommand(args []string) {
+func (m *model) executeStatusCommand(args []string) tea.Cmd {
 	if len(args) == 0 {
 		m.status = "usage: status idle|working|need-review|done"
-		return
+		return nil
 	}
 	status, ok := parseSessionStatusValue(strings.Join(args, " "))
 	if !ok {
 		m.status = "usage: status idle|working|need-review|done"
-		return
+		return nil
 	}
-	m.setActiveSessionStatus(status)
+	return m.setActiveSessionStatus(status)
 }
 
 func (m *model) setViewMode(mode viewMode) {
 	switch mode {
 	case viewReview:
-		m.mainActive = false
 		if m.compose.active {
 			m.compose = composeState{}
 		}
@@ -139,23 +145,18 @@ func (m *model) setViewMode(mode viewMode) {
 		m.clampReviewCursor()
 		m.status = "review queue"
 	case viewTree:
-		m.mainActive = false
 		if m.compose.active {
 			m.compose = composeState{}
 		}
 		m.viewMode = viewTree
 		m.status = "tree view"
-	case viewMain:
-		m.mainActive = true
-		m.viewMode = viewMain
-		m.status = "main room"
 	default:
 		return
 	}
 	m.preview = previewState{}
 }
 
-func (m *model) setActiveSessionStatus(status sessionStatus) {
+func (m *model) setActiveSessionStatus(status sessionStatus) tea.Cmd {
 	if m.statuses == nil {
 		m.statuses = map[string]sessionStatus{}
 	}
@@ -164,8 +165,9 @@ func (m *model) setActiveSessionStatus(status sessionStatus) {
 		item, ok := m.currentReviewItem()
 		if !ok {
 			m.status = "review queue is empty"
-			return
+			return nil
 		}
+		oldStatus, hadOldStatus := m.statuses[item.SessionKey]
 		m.statuses[item.SessionKey] = status
 		delete(m.statusStreaks, item.SessionKey)
 		m.clearHermesAdvice(item.SessionKey)
@@ -185,14 +187,15 @@ func (m *model) setActiveSessionStatus(status sessionStatus) {
 			State:   statusLabel(status),
 			Message: "manual status set",
 		})
-		return
+		return m.autoHermesNextStepCmd(hadOldStatus, oldStatus, status, item.SessionKey)
 	}
 
 	ref, ok := m.selectedSessionRef()
 	if !ok {
 		m.status = "select a session, window, or pane to set status"
-		return
+		return nil
 	}
+	oldStatus, hadOldStatus := m.statuses[ref.Key]
 	m.statuses[ref.Key] = status
 	delete(m.statusStreaks, ref.Key)
 	m.clearHermesAdvice(ref.Key)
@@ -207,4 +210,5 @@ func (m *model) setActiveSessionStatus(status sessionStatus) {
 		State:   statusLabel(status),
 		Message: "manual status set",
 	})
+	return m.autoHermesNextStepCmd(hadOldStatus, oldStatus, status, ref.Key)
 }

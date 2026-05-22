@@ -129,7 +129,6 @@ hosts:
 - `a` attaches to the selected session, window, or pane target.
 - `m` sends a message to the first detected agent pane for the selected target.
 - `x` relays selection keys to the first detected agent pane for the selected target.
-- `g` opens Main Room, a local coordination channel.
 - `tab` / `v` switches between tree view and the focused review queue.
 - In review view, `h` asks Hermes for advice, `1-9` chooses, `s` skips, and `u` restores skipped items.
 - `d` saves a diagnostic snapshot.
@@ -148,7 +147,6 @@ General navigation and state:
 :refresh
 :view tree
 :view review
-:view main
 :status idle
 :status working
 :status need-review
@@ -156,22 +154,7 @@ General navigation and state:
 :snapshot
 ```
 
-`:refresh` rescans configured tmux hosts. `:view` switches between the tree, review queue, and Main Room. `:status` manually overrides the selected session's state. `:snapshot` saves a diagnostic JSON snapshot; if no description is provided, the TUI prompts for one.
-
-Main Room commands:
-
-```text
-:main start
-:main hide
-:main status
-:main codex
-:main claude
-:main host local
-:main session tmux-kanban-main
-:main command codex
-```
-
-Main Room is a coordination surface and preview target for a configured conductor session. Some commands already change the runtime config and preview target, but the broader "main agent harness" is still experimental.
+`:refresh` rescans configured tmux hosts. `:view` switches between the tree and review queue. `:status` manually overrides the selected session's state. `:snapshot` saves a diagnostic JSON snapshot; if no description is provided, the TUI prompts for one.
 
 Hermes, QQ, and runtime settings:
 
@@ -181,13 +164,21 @@ Hermes, QQ, and runtime settings:
 :set qq off
 :set hermes on
 :set hermes.auto_review on
-:set main.agent claude
-:set main.host local
-:set main.session tmux-kanban-main
+:set hermes.done_advice on
+:set hermes.auto_done on
+:set hermes.idle_advice on
+:set hermes.auto_idle on
+:set hermes.auto_done all off
+:set hermes.auto_done here off
+:set hermes.auto_idle host gpu-a off
+:set hermes.auto_idle host all off
+:set hermes.auto_review session local/agents on
 :notify optional message for Hermes
 ```
 
 `:notify` uses the configured Hermes/QQ notification path and still requires `notification.qq_enabled: true`. Hermes auto review is intentionally conservative: automatic choices require explicit Hermes replies such as `CHOOSE <number>` or `SKIP`.
+Hermes settings can be global or scoped: `all on|off` explicitly changes the global default, `host <host|all> on|off` affects one machine or acts as a scoped wildcard, `session [host/]session|all on|off` affects one session or all sessions, and `here on|off` targets the currently selected session. done/idle next-step handling is also split into advice and adoption: `hermes.done_advice` / `hermes.idle_advice` only ask Hermes for a next-step recommendation, while `hermes.auto_done` / `hermes.auto_idle` send text back to the agent pane only when Hermes explicitly replies with `SEND: <message>`.
+Hermes replies, auto-adopted actions, skips, next-step sends, and memory writes are appended to `hermes.work_log`. The default path is `~/.local/state/tmux-kanban/hermes-worklog.jsonl` for later manual review.
 
 Agent mesh commands:
 
@@ -206,9 +197,11 @@ Agent mesh commands:
 :mesh mail dir ~/.local/state/tmux-kanban/mail
 :set mesh.mail on
 :set mesh.memory_root ~/.local/state/tmux-kanban/memory
+:memory update pane
+:memory update session
 ```
 
-The mesh commands currently expose the role, backend, skill, mail, and memory configuration model at runtime. The memory and review-advice pieces are useful today, while full autonomous task dispatch is still a scaffold rather than a finished workflow.
+The mesh commands currently expose the role, backend, skill, mail, and memory configuration model at runtime. `:memory update <global|host|session|window|pane>` captures the agent pane related to the current selection, asks Hermes with the `memory-summarizer` skill, and writes the target scope's `memory.md`. The memory and review-advice pieces are useful today, while full autonomous task dispatch is still a scaffold rather than a finished workflow.
 
 ### Agent CLI
 

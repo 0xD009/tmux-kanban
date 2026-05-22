@@ -98,7 +98,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.viewMode == viewReview {
 				m.skipReviewItem()
 			} else {
-				m.cycleSelectedSessionStatus()
+				return m, m.cycleSelectedSessionStatus()
 			}
 		case ui.KeyUnskip:
 			if m.viewMode == viewReview {
@@ -116,8 +116,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.ShowCursor
 			}
 			return m, nil
-		case ui.KeyMain:
-			return m.toggleMainSession()
 		case ui.KeySnapshot, ui.KeySnapshot2:
 			m.beginSnapshotDescription()
 			return m, tea.ShowCursor
@@ -208,9 +206,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			autoCmd := m.autoHermesReviewCmd(hadOldStatus, oldStatus, nextStatus, msg.key)
+			nextStepCmd := m.autoHermesNextStepCmd(hadOldStatus, oldStatus, nextStatus, msg.key)
 			bellCmd := needReviewBellCmd(hadOldStatus, oldStatus, nextStatus, autoCmd != nil)
-			if bellCmd != nil || autoCmd != nil {
-				return m, tea.Batch(bellCmd, autoCmd, m.ensurePreview())
+			if bellCmd != nil || autoCmd != nil || nextStepCmd != nil {
+				return m, tea.Batch(bellCmd, autoCmd, nextStepCmd, m.ensurePreview())
 			}
 		}
 	case hermesQueryResult:
@@ -224,6 +223,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != "" {
 			advice.err = msg.err
 			m.status = "Hermes query failed: " + clipString(msg.err, 80)
+			entry := reviewHermesWorkLogEntry(msg.item, displayHostName(msg.host), autoModeLabel(msg.auto), "error")
+			entry.Error = msg.err
+			addEffectiveHermesConditions(&entry, msg.hermes)
+			m.appendHermesWorkLog(entry)
 			m.addAgentActivity(agentActivity{
 				Source:  agentActivityReview,
 				Agent:   "Hermes",
@@ -234,6 +237,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			advice.text = msg.text
 			m.status = "Hermes replied"
+			entry := reviewHermesWorkLogEntry(msg.item, displayHostName(msg.host), autoModeLabel(msg.auto), "reply")
+			entry.Advice = msg.text
+			addEffectiveHermesConditions(&entry, msg.hermes)
+			m.appendHermesWorkLog(entry)
 			m.addAgentActivity(agentActivity{
 				Source:  agentActivityReview,
 				Agent:   "Hermes",
@@ -248,22 +255,76 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, cmd
 			}
 		}
-	case mainHermesResult:
+	case hermesNextStepResult:
+		if !m.hermesNextStepStillCurrent(msg) {
+			return m, nil
+		}
+		if m.hermes == nil {
+			m.hermes = map[string]hermesAdvice{}
+		}
+		advice := hermesAdvice{updatedAt: time.Now()}
 		if msg.err != "" {
-			m.status = "Hermes query failed: " + clipString(msg.err, 80)
-			m.replaceLastMainHermesThinking(mainMessage{
-				Author: "Hermes",
-				Role:   "error",
-				Target: "Main Room",
-				Text:   msg.err,
+			advice.err = msg.err
+			m.status = "Hermes next-step query failed: " + clipString(msg.err, 80)
+			entry := nextStepHermesWorkLogEntry(msg, "error")
+			entry.Error = msg.err
+			addEffectiveHermesConditions(&entry, msg.hermes)
+			m.appendHermesWorkLog(entry)
+			m.addAgentActivity(agentActivity{
+				Source:  agentActivitySession,
+				Agent:   "Hermes",
+				Target:  hermesNextStepTargetLabel(msg),
+				State:   "error",
+				Message: clipString(msg.err, 80),
 			})
 		} else {
-			m.status = "Hermes replied in main room"
-			m.replaceLastMainHermesThinking(mainMessage{
-				Author: "Hermes",
-				Role:   "conductor",
-				Target: "Main Room",
-				Text:   msg.text,
+			advice.text = msg.text
+			m.status = "Hermes suggested next step"
+			entry := nextStepHermesWorkLogEntry(msg, "reply")
+			entry.Advice = msg.text
+			addEffectiveHermesConditions(&entry, msg.hermes)
+			m.appendHermesWorkLog(entry)
+			m.addAgentActivity(agentActivity{
+				Source:  agentActivitySession,
+				Agent:   "Hermes",
+				Target:  hermesNextStepTargetLabel(msg),
+				State:   "replied",
+				Message: hermesActivityAnswer(msg.text),
+			})
+		}
+		m.hermes[msg.key] = advice
+		if msg.auto && msg.err == "" {
+			if cmd := m.applyHermesAutoNextStep(msg); cmd != nil {
+				return m, cmd
+			}
+		}
+	case memoryUpdateResult:
+		if msg.err != "" {
+			m.status = "memory update failed: " + clipString(msg.err, 100)
+			entry := memoryHermesWorkLogEntry(msg.scope, "error")
+			entry.Advice = msg.text
+			entry.Error = msg.err
+			m.appendHermesWorkLog(entry)
+			m.addAgentActivity(agentActivity{
+				Source:  agentActivitySession,
+				Agent:   "Hermes",
+				Target:  memoryScopeLabel(msg.scope),
+				State:   "error",
+				Message: clipString(msg.err, 80),
+			})
+		} else {
+			m.status = "memory updated: " + msg.path
+			entry := memoryHermesWorkLogEntry(msg.scope, "memory_write")
+			entry.Advice = msg.text
+			entry.Modified = true
+			entry.ModifiedPath = msg.path
+			m.appendHermesWorkLog(entry)
+			m.addAgentActivity(agentActivity{
+				Source:  agentActivitySession,
+				Agent:   "Hermes",
+				Target:  memoryScopeLabel(msg.scope),
+				State:   "memory",
+				Message: "wrote " + msg.path,
 			})
 		}
 	case sendResult:
@@ -326,13 +387,6 @@ func (m model) View() string {
 	contentWidth := maxInt(60, m.width-4)
 	contentTopRow := m.headerHeight()
 	contentHeight := maxInt(18, m.height-contentTopRow)
-	if m.viewMode == viewMain {
-		out.WriteString(m.renderMainRoom(contentWidth, contentHeight, contentTopRow, 1))
-		out.WriteString("\n")
-		view := out.String()
-		finishTUIViewRender(view)
-		return view
-	}
 	if m.viewMode == viewReview {
 		out.WriteString(m.renderReviewView(contentWidth, contentHeight, contentTopRow, 1))
 		out.WriteString("\n")

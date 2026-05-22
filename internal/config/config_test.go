@@ -22,6 +22,9 @@ func TestLoadHermesConfigDefaults(t *testing.T) {
 	if cfg.Hermes.AutoReview {
 		t.Fatalf("hermes auto_review = true, want false")
 	}
+	if cfg.Hermes.DoneAdvice || cfg.Hermes.AutoDone || cfg.Hermes.IdleAdvice || cfg.Hermes.AutoIdle {
+		t.Fatalf("hermes next-step defaults = %#v, want all false", cfg.Hermes)
+	}
 	if cfg.Hermes.Command != "hermes" {
 		t.Fatalf("hermes command = %q, want hermes", cfg.Hermes.Command)
 	}
@@ -30,6 +33,9 @@ func TestLoadHermesConfigDefaults(t *testing.T) {
 	}
 	if cfg.Hermes.TimeoutSeconds != 120 {
 		t.Fatalf("hermes timeout = %d, want 120", cfg.Hermes.TimeoutSeconds)
+	}
+	if cfg.Hermes.WorkLog != "~/.local/state/tmux-kanban/hermes-worklog.jsonl" {
+		t.Fatalf("hermes work_log = %q", cfg.Hermes.WorkLog)
 	}
 	if cfg.Notification.QQEnabled {
 		t.Fatalf("notification qq_enabled = true, want false")
@@ -50,7 +56,7 @@ func TestLoadHermesConfigDefaults(t *testing.T) {
 
 func TestLoadHermesAutoReviewConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte("hermes:\n  enabled: true\n  auto_review: true\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("hermes:\n  enabled: true\n  auto_review: true\n  done_advice: true\n  auto_done: true\n  idle_advice: true\n  auto_idle: true\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -58,8 +64,60 @@ func TestLoadHermesAutoReviewConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if !cfg.Hermes.Enabled || !cfg.Hermes.AutoReview {
-		t.Fatalf("hermes config = %#v, want enabled auto review", cfg.Hermes)
+	if !cfg.Hermes.Enabled || !cfg.Hermes.AutoReview || !cfg.Hermes.DoneAdvice || !cfg.Hermes.AutoDone || !cfg.Hermes.IdleAdvice || !cfg.Hermes.AutoIdle {
+		t.Fatalf("hermes config = %#v, want enabled auto review and next-step settings", cfg.Hermes)
+	}
+}
+
+func TestLoadHermesScopedConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	data := []byte("hermes:\n  enabled: true\n  auto_review: true\n  auto_done: false\n  work_log: /tmp/tmux-kanban-hermes.jsonl\n  scopes:\n    - host: gpu-a\n      auto_review: false\n    - host: gpu-a\n      session: trainer\n      auto_done: true\n")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(cfg.Hermes.Scopes) != 2 {
+		t.Fatalf("scopes = %d, want 2", len(cfg.Hermes.Scopes))
+	}
+	if cfg.Hermes.WorkLog != "/tmp/tmux-kanban-hermes.jsonl" {
+		t.Fatalf("work_log = %q", cfg.Hermes.WorkLog)
+	}
+	hostOnly := cfg.Hermes.Resolve(Host{Name: "gpu-a"}, "other")
+	if hostOnly.AutoReview {
+		t.Fatalf("host scoped auto_review = true, want false")
+	}
+	session := cfg.Hermes.Resolve(Host{Name: "gpu-a"}, "trainer")
+	if session.AutoReview {
+		t.Fatalf("session auto_review = true, want inherited false from host")
+	}
+	if !session.AutoDone {
+		t.Fatalf("session auto_done = false, want true")
+	}
+}
+
+func TestHermesScopeAllMatchesHostAndSession(t *testing.T) {
+	allOff := false
+	sessionOn := true
+	cfg := HermesConfig{
+		Enabled:    true,
+		AutoReview: true,
+		Scopes: []HermesScopeConfig{
+			{Host: "all", AutoReview: &allOff},
+			{Session: "local/agents", AutoReview: &sessionOn},
+		},
+	}
+
+	other := cfg.Resolve(Host{Name: "gpu-a"}, "agents")
+	if other.AutoReview {
+		t.Fatalf("other host auto_review = true, want false from host all")
+	}
+	localAgents := cfg.Resolve(Host{Name: "local"}, "agents")
+	if !localAgents.AutoReview {
+		t.Fatalf("local/agents auto_review = false, want true from scoped session")
 	}
 }
 

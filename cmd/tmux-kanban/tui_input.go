@@ -30,9 +30,6 @@ func (m model) inputBoxTitle() string {
 	case m.snapshotInput.active:
 		return "Snapshot Description"
 	case m.compose.active:
-		if m.viewMode == viewMain {
-			return "Main Room"
-		}
 		target := m.compose.label
 		if target == "" {
 			target = fallbackAgentTargetLabel(selectedAgentTarget{

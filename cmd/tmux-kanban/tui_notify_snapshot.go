@@ -109,7 +109,6 @@ func (m model) debugSnapshot(description string) debugsnap.Snapshot {
 		Config:      debugsnap.NewConfigSummary(m.cfg),
 		Runtime: debugsnap.RuntimeState{
 			ViewMode:        string(m.viewMode),
-			MainActive:      m.mainActive,
 			Status:          m.status,
 			SessionStatuses: statuses,
 			ReviewTargets:   targets,

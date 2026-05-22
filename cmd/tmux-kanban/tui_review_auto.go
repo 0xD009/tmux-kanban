@@ -16,9 +16,6 @@ type hermesAutoReviewAction struct {
 }
 
 func (m *model) autoHermesReviewCmd(hadOldStatus bool, oldStatus sessionStatus, nextStatus sessionStatus, key string) tea.Cmd {
-	if !m.cfg.Hermes.Enabled || !m.cfg.Hermes.AutoReview || strings.TrimSpace(m.cfg.Hermes.Command) == "" {
-		return nil
-	}
 	if normalizeSessionStatus(nextStatus) != sessionNeedReview {
 		return nil
 	}
@@ -30,6 +27,10 @@ func (m *model) autoHermesReviewCmd(hadOldStatus bool, oldStatus sessionStatus, 
 	}
 	item, ok := m.reviewItemByKey(key)
 	if !ok || item.Row.hostIndex < 0 || item.Row.hostIndex >= len(m.hosts) {
+		return nil
+	}
+	hermesCfg, ok := m.hermesConfigForReviewItem(item)
+	if !ok || !hermesCfg.Enabled || !hermesCfg.AutoReview || strings.TrimSpace(hermesCfg.Command) == "" {
 		return nil
 	}
 	if m.hermes == nil {
@@ -44,15 +45,22 @@ func (m *model) autoHermesReviewCmd(hadOldStatus bool, oldStatus sessionStatus, 
 		State:   "auto asking",
 		Message: "auto review requested",
 	})
-	return hermesQueryCmd(m.cfg, item, m.hosts[item.Row.hostIndex].host, true)
+	return hermesQueryCmd(configWithHermes(m.cfg, hermesCfg), item, m.hosts[item.Row.hostIndex].host, true)
 }
 
 func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines []string, advice string) tea.Cmd {
-	if !m.cfg.Hermes.AutoReview || m.sessionStatusForKey(item.SessionKey) != sessionNeedReview {
+	hermesCfg, ok := m.hermesConfigForReviewItem(item)
+	if !ok || !hermesCfg.Enabled || !hermesCfg.AutoReview || m.sessionStatusForKey(item.SessionKey) != sessionNeedReview {
 		return nil
 	}
 	action, ok := parseHermesAutoReviewAction(advice)
 	if !ok {
+		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
+		entry.Advice = advice
+		entry.ParsedAction = "unactionable"
+		entry.Accepted = false
+		addEffectiveHermesConditions(&entry, hermesCfg)
+		m.appendHermesWorkLog(entry)
 		m.status = "Hermes auto review needs human review"
 		m.addAgentActivity(agentActivity{
 			Source:  agentActivityReview,
@@ -68,16 +76,45 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 	case "choose":
 		cmd := m.sendChoiceForReviewItem(item, hostLabel, lines, action.choice)
 		if cmd == nil {
+			entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
+			entry.Advice = advice
+			entry.ParsedAction = "choose"
+			entry.Choice = action.choice
+			entry.Accepted = false
+			entry.Error = "choice is not visible"
+			addEffectiveHermesConditions(&entry, hermesCfg)
+			m.appendHermesWorkLog(entry)
 			m.status = "Hermes auto choice " + action.choice + " is not visible"
 			return nil
 		}
+		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
+		entry.Advice = advice
+		entry.ParsedAction = "choose"
+		entry.Choice = action.choice
+		entry.Accepted = true
+		entry.Modified = true
+		addEffectiveHermesConditions(&entry, hermesCfg)
+		m.appendHermesWorkLog(entry)
 		m.status = "Hermes auto chose " + action.choice + " for " + item.HostName + "/" + item.SessionName
 		return cmd
 	case "skip":
 		m.skipReviewItemByKey(item.SessionKey, "Hermes")
+		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
+		entry.Advice = advice
+		entry.ParsedAction = "skip"
+		entry.Accepted = true
+		entry.Modified = true
+		addEffectiveHermesConditions(&entry, hermesCfg)
+		m.appendHermesWorkLog(entry)
 		m.status = "Hermes auto skipped " + item.HostName + "/" + item.SessionName
 		return nil
 	default:
+		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
+		entry.Advice = advice
+		entry.ParsedAction = action.kind
+		entry.Accepted = false
+		addEffectiveHermesConditions(&entry, hermesCfg)
+		m.appendHermesWorkLog(entry)
 		m.status = "Hermes auto review needs human review"
 		return nil
 	}

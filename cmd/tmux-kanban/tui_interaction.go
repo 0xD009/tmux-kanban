@@ -10,10 +10,6 @@ import (
 )
 
 func (m model) selectedAttachTarget() (config.Host, string, bool) {
-	if m.viewMode == viewMain {
-		return config.Host{}, "", false
-	}
-
 	selected, ok := m.activePreviewRow()
 	if !ok {
 		return config.Host{}, "", false
@@ -44,41 +40,6 @@ func (m model) attachSelected() tea.Cmd {
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
 		return attachFinished{err: err}
 	})
-}
-
-func (m model) toggleMainSession() (model, tea.Cmd) {
-	if m.viewMode == viewMain {
-		m.mainActive = false
-		m.setViewMode(viewTree)
-		m.compose = composeState{}
-		m.preview = previewState{}
-		m.status = "main room closed"
-		return m, m.ensurePreview()
-	}
-	return m.startMainSession()
-}
-
-func (m model) startMainSession() (model, tea.Cmd) {
-	m.mainActive = true
-	m.viewMode = viewMain
-	m.preview = previewState{}
-	m.compose = m.mainComposeState()
-	m.status = "main room opened"
-	m.addMainMessage(mainMessage{
-		Author: "system",
-		Role:   "system",
-		Target: "Main Room",
-		Text:   "Main Room opened. Agent backend is empty; enable Hermes or wire a harness to get replies.",
-	})
-	return m, nil
-}
-
-func (m model) mainComposeState() composeState {
-	return composeState{
-		active: true,
-		key:    "main-room",
-		label:  "Main Room",
-	}
 }
 
 func (m *model) beginAgentControl() {
@@ -132,12 +93,6 @@ func (m model) sendControlKeys(action string, keys ...string) tea.Cmd {
 }
 
 func (m *model) beginCompose() {
-	if m.viewMode == viewMain {
-		m.compose = m.mainComposeState()
-		m.status = "message main room"
-		return
-	}
-
 	target, ok := m.activeAgentTarget()
 	if !ok {
 		m.status = "select a codex/claude-code session, window, or pane first"
@@ -171,19 +126,11 @@ func (m model) updateCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.compose = composeState{}
-		if m.viewMode == viewMain {
-			m.status = "main room input blurred"
-		} else {
-			m.status = "message canceled"
-		}
+		m.status = "message canceled"
 		return m, tea.HideCursor
 	case "ctrl+c":
 		m.compose = composeState{}
-		if m.viewMode == viewMain {
-			m.status = "main room input blurred"
-		} else {
-			m.status = "message canceled"
-		}
+		m.status = "message canceled"
 		return m, tea.HideCursor
 	case "ctrl+u":
 		m.compose.setRunes(nil)
@@ -223,44 +170,11 @@ func (m model) updateCompose(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		text := strings.TrimSpace(m.compose.text)
 		if text == "" {
-			if m.viewMode == viewMain {
-				m.compose.setRunes(nil)
-				m.compose.cursor = 0
-				return m, nil
-			}
 			m.compose = composeState{}
 			m.status = "message canceled"
 			return m, tea.HideCursor
 		}
 
-		if m.viewMode == viewMain {
-			m.addMainMessage(mainMessage{
-				Author: "You",
-				Role:   "user",
-				Target: "Main Room",
-				Text:   text,
-			})
-			m.compose.setRunes(nil)
-			m.compose.cursor = 0
-			if m.cfg.Hermes.Enabled {
-				m.status = "asking Hermes in main room..."
-				m.addMainMessage(mainMessage{
-					Author: "Hermes",
-					Role:   "conductor",
-					Target: "Main Room",
-					Text:   "thinking...",
-				})
-				return m, mainHermesCmd(m.cfg.Hermes, m.mainHermesPrompt(text))
-			}
-			m.status = "main room has no agent harness"
-			m.addMainMessage(mainMessage{
-				Author: "system",
-				Role:   "system",
-				Target: "Main Room",
-				Text:   "No agent harness is configured. Turn Hermes on or wire a harness backend.",
-			})
-			return m, nil
-		}
 		host := m.hosts[m.compose.hostIndex].host
 		target := m.compose.target
 		m.compose = composeState{}

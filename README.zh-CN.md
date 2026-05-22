@@ -129,7 +129,6 @@ hosts:
 - `a` attach 到选中的 session、window 或 pane。
 - `m` 给选中目标的第一个 agent pane 发送消息。
 - `x` 给选中目标的第一个 agent pane relay selection keys。
-- `g` 打开 Main Room，本地协调频道。
 - `tab` / `v` 在 tree view 和 focused review queue 之间切换。
 - 在 review view 中，`h` 询问 Hermes，`1-9` 选择，`s` 跳过，`u` 恢复跳过项。
 - `d` 保存 diagnostic snapshot。
@@ -148,7 +147,6 @@ hosts:
 :refresh
 :view tree
 :view review
-:view main
 :status idle
 :status working
 :status need-review
@@ -156,22 +154,7 @@ hosts:
 :snapshot
 ```
 
-`:refresh` 会重新扫描配置里的 tmux host。`:view` 在 tree、review queue 和 Main Room 之间切换。`:status` 手动覆盖当前选中 session 的状态。`:snapshot` 保存 diagnostic JSON snapshot；如果没有直接写 description，TUI 会继续询问。
-
-Main Room 命令：
-
-```text
-:main start
-:main hide
-:main status
-:main codex
-:main claude
-:main host local
-:main session tmux-kanban-main
-:main command codex
-```
-
-Main Room 是一个协调界面，也可以作为配置里的 conductor session preview 目标。有些命令已经可以修改运行时配置和 preview 目标，但更完整的 main agent harness 目前仍然是实验性的。
+`:refresh` 会重新扫描配置里的 tmux host。`:view` 在 tree 和 review queue 之间切换。`:status` 手动覆盖当前选中 session 的状态。`:snapshot` 保存 diagnostic JSON snapshot；如果没有直接写 description，TUI 会继续询问。
 
 Hermes、QQ 和运行时设置：
 
@@ -181,13 +164,21 @@ Hermes、QQ 和运行时设置：
 :set qq off
 :set hermes on
 :set hermes.auto_review on
-:set main.agent claude
-:set main.host local
-:set main.session tmux-kanban-main
+:set hermes.done_advice on
+:set hermes.auto_done on
+:set hermes.idle_advice on
+:set hermes.auto_idle on
+:set hermes.auto_done all off
+:set hermes.auto_done here off
+:set hermes.auto_idle host gpu-a off
+:set hermes.auto_idle host all off
+:set hermes.auto_review session local/agents on
 :notify optional message for Hermes
 ```
 
 `:notify` 走配置里的 Hermes/QQ 通知路径，仍然需要 `notification.qq_enabled: true`。Hermes auto review 的策略故意比较保守：自动选择需要 Hermes 返回明确的 `CHOOSE <number>` 或 `SKIP`。
+Hermes 设置支持全局默认，也支持 host/session 覆盖：`all on|off` 显式修改全局默认，`host <host|all> on|off` 影响某台机器或作为 scope 通配符，`session [host/]session|all on|off` 影响某个 session 或所有 session，`here on|off` 作用于当前选中的 session。done/idle next-step 也分成建议和自动采纳两层：`hermes.done_advice` / `hermes.idle_advice` 只让 Hermes 给出下一步建议，`hermes.auto_done` / `hermes.auto_idle` 只有在 Hermes 明确回复 `SEND: <message>` 时才会把消息发回对应 agent pane。
+Hermes 的回复、自动采纳、跳过、发送下一步和 memory 写入都会追加到 `hermes.work_log`。默认路径是 `~/.local/state/tmux-kanban/hermes-worklog.jsonl`，用于后续人工审查。
 
 Agent mesh 命令：
 
@@ -206,9 +197,11 @@ Agent mesh 命令：
 :mesh mail dir ~/.local/state/tmux-kanban/mail
 :set mesh.mail on
 :set mesh.memory_root ~/.local/state/tmux-kanban/memory
+:memory update pane
+:memory update session
 ```
 
-mesh 命令目前主要是在运行时暴露 role、backend、skill、mail、memory 这些配置模型。memory 和 review-advice 现在已经有实际用途；完整的自主任务派发仍然只是 scaffold，还不是完成的工作流。
+mesh 命令目前主要是在运行时暴露 role、backend、skill、mail、memory 这些配置模型。`:memory update <global|host|session|window|pane>` 会抓取当前选中对象关联的 agent pane，使用 Hermes 和 `memory-summarizer` skill 生成对应 scope 的 `memory.md`。memory 和 review-advice 现在已经有实际用途；完整的自主任务派发仍然只是 scaffold，还不是完成的工作流。
 
 ### Agent CLI
 

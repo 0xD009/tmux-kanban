@@ -35,13 +35,7 @@ func findHost(cfg config.Config, hostName string) (config.Host, bool) {
 }
 
 func displayHostName(host config.Host) string {
-	if host.Name != "" {
-		return host.Name
-	}
-	if host.SSH != "" {
-		return host.SSH
-	}
-	return "local"
+	return config.HostDisplayName(host)
 }
 
 func splitKeys(value string) []string {

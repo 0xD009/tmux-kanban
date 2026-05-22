@@ -206,11 +206,16 @@ func (m *model) queryHermesForReviewItem() tea.Cmd {
 		m.status = "review queue is empty"
 		return nil
 	}
-	if !m.cfg.Hermes.Enabled {
+	hermesCfg, ok := m.hermesConfigForReviewItem(item)
+	if !ok {
+		m.status = "review item host is not available"
+		return nil
+	}
+	if !hermesCfg.Enabled {
 		m.status = "Hermes is disabled in config"
 		return nil
 	}
-	if strings.TrimSpace(m.cfg.Hermes.Command) == "" {
+	if strings.TrimSpace(hermesCfg.Command) == "" {
 		m.status = "Hermes command is not configured"
 		return nil
 	}
@@ -228,7 +233,7 @@ func (m *model) queryHermesForReviewItem() tea.Cmd {
 		Message: "review requested",
 	})
 	host := m.hosts[item.Row.hostIndex].host
-	return hermesQueryCmd(m.cfg, item, host, false)
+	return hermesQueryCmd(configWithHermes(m.cfg, hermesCfg), item, host, false)
 }
 
 func (m model) reviewItemByKey(key string) (reviewItem, bool) {
@@ -241,9 +246,6 @@ func (m model) reviewItemByKey(key string) (reviewItem, bool) {
 }
 
 func (m model) activePreviewRow() (row, bool) {
-	if m.viewMode == viewMain {
-		return row{}, false
-	}
 	if m.viewMode == viewReview {
 		item, ok := m.currentReviewItem()
 		if !ok {
@@ -260,9 +262,6 @@ func (m model) activePreviewRow() (row, bool) {
 }
 
 func (m model) activeAgentTarget() (selectedAgentTarget, bool) {
-	if m.viewMode == viewMain {
-		return selectedAgentTarget{}, false
-	}
 	if m.viewMode == viewReview {
 		item, ok := m.currentReviewItem()
 		if !ok {

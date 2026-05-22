@@ -69,16 +69,14 @@ func (m model) helpLine() string {
 		return "snapshot description | enter save | esc cancel | ctrl+u clear"
 	case m.command.active:
 		return "command mode | up/down choose | tab complete | enter run | esc cancel | ctrl+u clear"
-	case m.viewMode == viewMain:
-		return "main room | enter send | esc blur | m focus input | : command | tab/v review | g tree"
 	case m.compose.active:
 		return "message mode | enter send | left/right move | esc cancel | ctrl+u clear"
 	case m.control.active:
 		return "relay mode | j/k or arrows move remote choice | enter choose | tab next | esc stop"
 	case m.viewMode == viewReview:
-		return "review view | : command | tab/v tree | g main | j/k move | 1-9 choose | h ask Hermes | s skip | u unskip | d snapshot"
+		return "review view | : command | tab/v tree | j/k move | 1-9 choose | h ask Hermes | s skip | u unskip | d snapshot"
 	default:
-		return "tree view | : command | tab/v review | g main | q quit | r refresh | j/k move | enter toggle | 1-9 choose | a attach | s status | d snapshot"
+		return "tree view | : command | tab/v review | q quit | r refresh | j/k move | enter toggle | 1-9 choose | a attach | s status | d snapshot"
 	}
 }
 

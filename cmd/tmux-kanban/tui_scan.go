@@ -224,6 +224,7 @@ func (m *model) applyPreviewAgentStatus(key string, lines []string) tea.Cmd {
 	})
 	nextStatus := m.sessionStatusForKey(ref.Key)
 	autoCmd := m.autoHermesReviewCmd(hadOldStatus, oldStatus, nextStatus, ref.Key)
+	nextStepCmd := m.autoHermesNextStepCmd(hadOldStatus, oldStatus, nextStatus, ref.Key)
 	if m.shouldLogPolledStatusChange(hadOldStatus, oldStatus, nextStatus) {
 		m.addAgentActivity(agentActivity{
 			Source:  agentActivitySession,
@@ -233,7 +234,7 @@ func (m *model) applyPreviewAgentStatus(key string, lines []string) tea.Cmd {
 			Message: "status changed",
 		})
 	}
-	return tea.Batch(needReviewBellCmd(hadOldStatus, oldStatus, nextStatus, autoCmd != nil), autoCmd)
+	return tea.Batch(needReviewBellCmd(hadOldStatus, oldStatus, nextStatus, autoCmd != nil), autoCmd, nextStepCmd)
 }
 
 func hermesQueryCmd(cfg config.Config, item reviewItem, host config.Host, auto bool) tea.Cmd {
@@ -244,15 +245,15 @@ func hermesQueryCmd(cfg config.Config, item reviewItem, host config.Host, auto b
 		client := tmuxclient.DefaultClient{}
 		capture := client.CapturePane(ctx, host, item.Row.attachTarget, 40)
 		if capture.Err != "" {
-			return hermesQueryResult{key: item.SessionKey, err: capture.Err, auto: auto, item: item, host: host}
+			return hermesQueryResult{key: item.SessionKey, err: capture.Err, auto: auto, item: item, host: host, hermes: cfg.Hermes}
 		}
 
 		prompt := hermesReviewPromptWithContext(item, capture.Lines, reviewHermesPromptContext(cfg, item))
 		text, err := runHermesOneshot(ctx, cfg.Hermes, prompt)
 		if err != nil {
-			return hermesQueryResult{key: item.SessionKey, err: err.Error(), auto: auto, item: item, host: host, lines: capture.Lines}
+			return hermesQueryResult{key: item.SessionKey, err: err.Error(), auto: auto, item: item, host: host, lines: capture.Lines, hermes: cfg.Hermes}
 		}
-		return hermesQueryResult{key: item.SessionKey, text: text, auto: auto, item: item, host: host, lines: capture.Lines}
+		return hermesQueryResult{key: item.SessionKey, text: text, auto: auto, item: item, host: host, lines: capture.Lines, hermes: cfg.Hermes}
 	}
 }
 

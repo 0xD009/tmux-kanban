@@ -72,16 +72,32 @@ type PolicySummary struct {
 }
 
 type HermesSummary struct {
-	Enabled        bool     `json:"enabled"`
-	AutoReview     bool     `json:"auto_review"`
-	Command        string   `json:"command"`
-	Args           []string `json:"args,omitempty"`
-	TimeoutSeconds int      `json:"timeout_seconds"`
+	Enabled        bool                 `json:"enabled"`
+	AutoReview     bool                 `json:"auto_review"`
+	DoneAdvice     bool                 `json:"done_advice"`
+	AutoDone       bool                 `json:"auto_done"`
+	IdleAdvice     bool                 `json:"idle_advice"`
+	AutoIdle       bool                 `json:"auto_idle"`
+	Command        string               `json:"command"`
+	Args           []string             `json:"args,omitempty"`
+	TimeoutSeconds int                  `json:"timeout_seconds"`
+	WorkLog        string               `json:"work_log,omitempty"`
+	Scopes         []HermesScopeSummary `json:"scopes,omitempty"`
+}
+
+type HermesScopeSummary struct {
+	Host       string `json:"host,omitempty"`
+	Session    string `json:"session,omitempty"`
+	Enabled    *bool  `json:"enabled,omitempty"`
+	AutoReview *bool  `json:"auto_review,omitempty"`
+	DoneAdvice *bool  `json:"done_advice,omitempty"`
+	AutoDone   *bool  `json:"auto_done,omitempty"`
+	IdleAdvice *bool  `json:"idle_advice,omitempty"`
+	AutoIdle   *bool  `json:"auto_idle,omitempty"`
 }
 
 type RuntimeState struct {
 	ViewMode        string            `json:"view_mode"`
-	MainActive      bool              `json:"main_active"`
 	Status          string            `json:"status"`
 	SessionStatuses map[string]string `json:"session_statuses,omitempty"`
 	ReviewTargets   map[string]string `json:"review_targets,omitempty"`
@@ -153,10 +169,28 @@ func NewConfigSummary(cfg config.Config) ConfigSummary {
 		Hermes: HermesSummary{
 			Enabled:        cfg.Hermes.Enabled,
 			AutoReview:     cfg.Hermes.AutoReview,
+			DoneAdvice:     cfg.Hermes.DoneAdvice,
+			AutoDone:       cfg.Hermes.AutoDone,
+			IdleAdvice:     cfg.Hermes.IdleAdvice,
+			AutoIdle:       cfg.Hermes.AutoIdle,
 			Command:        cfg.Hermes.Command,
 			Args:           append([]string(nil), cfg.Hermes.Args...),
 			TimeoutSeconds: cfg.Hermes.TimeoutSeconds,
+			WorkLog:        cfg.Hermes.WorkLog,
+			Scopes:         make([]HermesScopeSummary, 0, len(cfg.Hermes.Scopes)),
 		},
+	}
+	for _, scope := range cfg.Hermes.Scopes {
+		summary.Hermes.Scopes = append(summary.Hermes.Scopes, HermesScopeSummary{
+			Host:       scope.Host,
+			Session:    scope.Session,
+			Enabled:    copyBoolPtr(scope.Enabled),
+			AutoReview: copyBoolPtr(scope.AutoReview),
+			DoneAdvice: copyBoolPtr(scope.DoneAdvice),
+			AutoDone:   copyBoolPtr(scope.AutoDone),
+			IdleAdvice: copyBoolPtr(scope.IdleAdvice),
+			AutoIdle:   copyBoolPtr(scope.AutoIdle),
+		})
 	}
 	for _, policy := range cfg.AgentMesh.Policies {
 		summary.AgentMesh.Policies = append(summary.AgentMesh.Policies, PolicySummary{
@@ -176,6 +210,14 @@ func NewConfigSummary(cfg config.Config) ConfigSummary {
 	summary.Notification.QQEnabled = cfg.Notification.QQEnabled
 	summary.Debug.SnapshotDir = cfg.Debug.SnapshotDir
 	return summary
+}
+
+func copyBoolPtr(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
 }
 
 func DefaultSnapshotDir() string {

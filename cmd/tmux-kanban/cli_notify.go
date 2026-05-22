@@ -7,6 +7,7 @@ import (
 
 	"tmux-kanban/internal/agent"
 	"tmux-kanban/internal/config"
+	"tmux-kanban/internal/hermeslog"
 )
 
 func notifyQQForReviewItems(cfg config.Config, items []cliReviewItem, intent string) cliNotificationResult {
@@ -33,12 +34,37 @@ func notifyQQForReviewItems(cfg config.Config, items []cliReviewItem, intent str
 	output, err := runHermesOneshot(ctx, cfg.Hermes, prompt)
 	if err != nil {
 		result.Error = err.Error()
+		appendHermesWorkLogForConfig(cfg, hermeslog.Entry{
+			Flow:    "notify",
+			Event:   "error",
+			Mode:    "manual",
+			Trigger: "notify-review-cli",
+			Conditions: map[string]string{
+				"needs_review_count": fmt.Sprintf("%d", len(needsReview)),
+				"intent":             intent,
+			},
+			Error: err.Error(),
+		})
 		return result
 	}
 
 	result.Sent = true
 	result.Reason = "sent"
 	result.HermesOutput = clipString(output, 400)
+	appendHermesWorkLogForConfig(cfg, hermeslog.Entry{
+		Flow:     "notify",
+		Event:    "sent",
+		Mode:     "manual",
+		Trigger:  "notify-review-cli",
+		Advice:   output,
+		Accepted: true,
+		Modified: true,
+		Target:   qqNotificationTarget,
+		Conditions: map[string]string{
+			"needs_review_count": fmt.Sprintf("%d", len(needsReview)),
+			"intent":             intent,
+		},
+	})
 	return result
 }
 

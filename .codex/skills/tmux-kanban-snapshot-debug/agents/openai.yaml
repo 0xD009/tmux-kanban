@@ -1,0 +1,4 @@
+interface:
+  display_name: "tmux-kanban Snapshot Debug"
+  short_description: "Debug tmux-kanban snapshots quickly"
+  default_prompt: "Use $tmux-kanban-snapshot-debug to diagnose why a tmux-kanban snapshot misclassified an agent status."

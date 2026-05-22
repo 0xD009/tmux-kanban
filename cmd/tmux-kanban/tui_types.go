@@ -5,6 +5,7 @@ import (
 
 	"tmux-kanban/internal/config"
 	"tmux-kanban/internal/core"
+	"tmux-kanban/internal/mesh"
 	"tmux-kanban/internal/tmuxscan"
 )
 
@@ -23,8 +24,6 @@ type model struct {
 	command       commandState
 	snapshotInput snapshotDescriptionState
 	viewMode      viewMode
-	mainActive    bool
-	mainMessages  []mainMessage
 	hermes        map[string]hermesAdvice
 	activities    []agentActivity
 	status        string
@@ -98,7 +97,6 @@ type viewMode string
 const (
 	viewTree   viewMode = "tree"
 	viewReview viewMode = "review"
-	viewMain   viewMode = "main"
 )
 
 type reviewItem struct {
@@ -138,18 +136,35 @@ type agentStatusResult struct {
 }
 
 type hermesQueryResult struct {
-	key   string
-	text  string
-	err   string
-	auto  bool
-	item  reviewItem
-	host  config.Host
-	lines []string
+	key    string
+	text   string
+	err    string
+	auto   bool
+	item   reviewItem
+	host   config.Host
+	lines  []string
+	hermes config.HermesConfig
 }
 
-type mainHermesResult struct {
-	text string
-	err  string
+type hermesNextStepResult struct {
+	key         string
+	status      sessionStatus
+	text        string
+	err         string
+	auto        bool
+	host        config.Host
+	hostName    string
+	sessionName string
+	target      selectedAgentTarget
+	lines       []string
+	hermes      config.HermesConfig
+}
+
+type memoryUpdateResult struct {
+	scope mesh.Scope
+	path  string
+	text  string
+	err   string
 }
 
 type sendResult struct {
@@ -182,7 +197,6 @@ const (
 
 const (
 	maxAgentActivities = 80
-	maxMainMessages    = 160
 )
 
 type agentActivity struct {
@@ -192,14 +206,6 @@ type agentActivity struct {
 	Target  string
 	State   string
 	Message string
-}
-
-type mainMessage struct {
-	At     time.Time
-	Author string
-	Role   string
-	Target string
-	Text   string
 }
 
 type agentControlState struct {

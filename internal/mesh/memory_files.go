@@ -64,6 +64,25 @@ func LocalMemoryPath(root string, scope Scope) string {
 	return filepath.Join(append(parts, memoryFileName)...)
 }
 
+func WriteLocalMemory(root string, scope Scope, text string) (string, error) {
+	root = expandLocalPath(root)
+	if strings.TrimSpace(root) == "" {
+		return "", errors.New("memory root is not configured")
+	}
+	path := LocalMemoryPath(root, scope)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	text = strings.TrimSpace(text)
+	if text != "" {
+		text += "\n"
+	}
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 func expandLocalPath(path string) string {
 	path = strings.TrimSpace(os.ExpandEnv(path))
 	if path == "" {

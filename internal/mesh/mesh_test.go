@@ -74,6 +74,25 @@ func TestLocalMemoryContextReadsRootToLeafFiles(t *testing.T) {
 	}
 }
 
+func TestWriteLocalMemoryCreatesScopedFile(t *testing.T) {
+	root := t.TempDir()
+	scope := Scope{Host: "local", Session: "agents", Window: "0", Pane: "%1"}
+	path, err := WriteLocalMemory(root, scope, "TITLE: pane\nSUMMARY: ready")
+	if err != nil {
+		t.Fatalf("WriteLocalMemory() error = %v", err)
+	}
+	if path != LocalMemoryPath(root, scope) {
+		t.Fatalf("path = %q, want %q", path, LocalMemoryPath(root, scope))
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if string(data) != "TITLE: pane\nSUMMARY: ready\n" {
+		t.Fatalf("memory file = %q", string(data))
+	}
+}
+
 func TestSpecsForScopeBuildsSharedSessionAgents(t *testing.T) {
 	cfg := config.Default().AgentMesh
 	cfg.Enabled = true
