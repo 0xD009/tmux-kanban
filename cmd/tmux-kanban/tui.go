@@ -81,17 +81,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.toggleSelected()
 			}
 		case "up", "k":
-			if m.viewMode == viewReview {
-				m.moveReviewCursor(-1)
-			} else {
-				m.moveCursor(-1)
-			}
+			m.moveFocusedPanel(m.focusedPanel, -1)
 		case "down", "j":
-			if m.viewMode == viewReview {
-				m.moveReviewCursor(1)
-			} else {
-				m.moveCursor(1)
-			}
+			m.moveFocusedPanel(m.focusedPanel, 1)
 		case ui.KeyAttach:
 			return m, m.attachSelected()
 		case ui.KeyStatus:

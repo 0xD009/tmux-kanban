@@ -10,26 +10,29 @@ import (
 )
 
 type model struct {
-	cfg           config.Config
-	hosts         []hostState
-	cursor        int
-	expanded      map[string]bool
-	statuses      map[string]sessionStatus
-	statusStreaks map[string]statusStreak
-	reviewTargets map[string]selectedAgentTarget
-	preview       previewState
-	cache         map[string]previewCacheEntry
-	control       agentControlState
-	compose       composeState
-	command       commandState
-	sessionClose  pendingSessionClose
-	snapshotInput snapshotDescriptionState
-	viewMode      viewMode
-	hermes        map[string]hermesAdvice
-	activities    []agentActivity
-	status        string
-	width         int
-	height        int
+	cfg            config.Config
+	hosts          []hostState
+	cursor         int
+	expanded       map[string]bool
+	statuses       map[string]sessionStatus
+	statusStreaks  map[string]statusStreak
+	reviewTargets  map[string]selectedAgentTarget
+	preview        previewState
+	cache          map[string]previewCacheEntry
+	control        agentControlState
+	compose        composeState
+	command        commandState
+	sessionClose   pendingSessionClose
+	snapshotInput  snapshotDescriptionState
+	viewMode       viewMode
+	hermes         map[string]hermesAdvice
+	activities     []agentActivity
+	status         string
+	width          int
+	height         int
+	focusedPanel   focusedPanel
+	previewScroll  int
+	activityScroll int
 
 	reviewCursor    int
 	reviewCursorKey string
@@ -37,6 +40,7 @@ type model struct {
 
 	lastWheelAt        time.Time
 	lastWheelDirection int
+	lastWheelPanel     focusedPanel
 	skipRender         bool
 	scanAnnounce       bool
 }
@@ -98,6 +102,17 @@ type viewMode string
 const (
 	viewTree   viewMode = "tree"
 	viewReview viewMode = "review"
+)
+
+type focusedPanel string
+
+const (
+	panelNone        focusedPanel = ""
+	panelExplorer    focusedPanel = "explorer"
+	panelPreview     focusedPanel = "preview"
+	panelKanban      focusedPanel = "kanban"
+	panelReviewQueue focusedPanel = "review_queue"
+	panelActivity    focusedPanel = "activity"
 )
 
 type reviewItem struct {

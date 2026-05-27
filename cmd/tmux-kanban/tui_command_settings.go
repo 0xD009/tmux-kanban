@@ -142,6 +142,7 @@ func (m *model) setViewMode(mode viewMode) {
 			m.compose = composeState{}
 		}
 		m.viewMode = viewReview
+		m.focusedPanel = panelReviewQueue
 		m.clampReviewCursor()
 		m.status = "review queue"
 	case viewTree:
@@ -149,11 +150,13 @@ func (m *model) setViewMode(mode viewMode) {
 			m.compose = composeState{}
 		}
 		m.viewMode = viewTree
+		m.focusedPanel = panelExplorer
 		m.status = "tree view"
 	default:
 		return
 	}
 	m.preview = previewState{}
+	m.resetPreviewScroll()
 }
 
 func (m *model) setActiveSessionStatus(status sessionStatus) tea.Cmd {

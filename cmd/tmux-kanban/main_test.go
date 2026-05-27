@@ -2559,6 +2559,154 @@ func TestMouseWheelIsThrottledPerDirection(t *testing.T) {
 	}
 }
 
+func TestMouseFocusRoutesWheelToPanelUnderPointer(t *testing.T) {
+	m := model{
+		width:  120,
+		height: 40,
+		hosts: []hostState{{
+			host: config.Host{Name: "local", SSH: "local"},
+			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{
+				{ID: "$1", Name: "one"},
+				{ID: "$2", Name: "two"},
+				{ID: "$3", Name: "three"},
+			}},
+			loaded: true,
+		}},
+		expanded: map[string]bool{"host:0": true},
+	}
+	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+	preview := testPanelBounds(t, m, panelPreview)
+	explorer := testPanelBounds(t, m, panelExplorer)
+
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseWheelUp, X: preview.x, Y: preview.y}, now)
+	if m.previewScroll != 3 {
+		t.Fatalf("previewScroll = %d, want 3", m.previewScroll)
+	}
+	if m.cursor != 0 {
+		t.Fatalf("cursor = %d, want unchanged", m.cursor)
+	}
+
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseWheelDown, X: explorer.x, Y: explorer.y}, now.Add(wheelThrottleInterval+time.Millisecond))
+	if m.cursor != 1 {
+		t.Fatalf("cursor after explorer wheel = %d, want 1", m.cursor)
+	}
+	if m.previewScroll != 0 {
+		t.Fatalf("previewScroll after target move = %d, want reset", m.previewScroll)
+	}
+}
+
+func TestMouseClickFocusRoutesKeyboardMovement(t *testing.T) {
+	m := model{width: 120, height: 40}
+	preview := testPanelBounds(t, m, panelPreview)
+
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseLeft, X: preview.x, Y: preview.y}, time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
+	if m.focusedPanel != panelPreview {
+		t.Fatalf("focusedPanel = %q, want preview", m.focusedPanel)
+	}
+
+	m.moveFocusedPanel(m.focusedPanel, -1)
+	if m.previewScroll != 3 {
+		t.Fatalf("previewScroll after focused key movement = %d, want 3", m.previewScroll)
+	}
+}
+
+func TestMouseWheelInReviewPreviewDoesNotMoveReviewCursor(t *testing.T) {
+	first := tmuxscan.Session{
+		ID:   "$1",
+		Name: "first",
+		Windows: []tmuxscan.Window{{
+			ID:    "@1",
+			Index: "0",
+			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex}},
+		}},
+	}
+	second := tmuxscan.Session{
+		ID:   "$2",
+		Name: "second",
+		Windows: []tmuxscan.Window{{
+			ID:    "@2",
+			Index: "0",
+			Panes: []tmuxscan.Pane{{ID: "%2", Index: "0", Agent: tmuxscan.AgentClaude}},
+		}},
+	}
+	host := config.Host{Name: "local", Local: true}
+	m := model{
+		width:  120,
+		height: 40,
+		hosts: []hostState{{
+			host:     host,
+			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{first, second}},
+			loaded:   true,
+		}},
+		statuses: map[string]sessionStatus{
+			sessionStatusKey(host, first):  sessionNeedReview,
+			sessionStatusKey(host, second): sessionNeedReview,
+		},
+		viewMode: viewReview,
+	}
+	preview := testPanelBounds(t, m, panelPreview)
+	queue := testPanelBounds(t, m, panelReviewQueue)
+	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
+
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseWheelUp, X: preview.x, Y: preview.y}, now)
+	if m.reviewCursor != 0 {
+		t.Fatalf("reviewCursor after preview wheel = %d, want unchanged", m.reviewCursor)
+	}
+	if m.previewScroll != 3 {
+		t.Fatalf("previewScroll = %d, want 3", m.previewScroll)
+	}
+
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseWheelDown, X: queue.x, Y: queue.y}, now.Add(wheelThrottleInterval+time.Millisecond))
+	if m.reviewCursor != 1 {
+		t.Fatalf("reviewCursor after queue wheel = %d, want 1", m.reviewCursor)
+	}
+}
+
+func TestPreviewScrollOffsetChangesVisibleLines(t *testing.T) {
+	lines := []string{"one", "two", "three", "four", "five"}
+
+	tail := strings.Join(scrolledPreviewLines(lines, 20, 3, 0), "\n")
+	if !strings.Contains(tail, "three") || !strings.Contains(tail, "five") || strings.Contains(tail, "two") {
+		t.Fatalf("tail view = %q, want last three lines", tail)
+	}
+
+	scrolled := strings.Join(scrolledPreviewLines(lines, 20, 3, 2), "\n")
+	if !strings.Contains(scrolled, "one") || !strings.Contains(scrolled, "three") || strings.Contains(scrolled, "five") {
+		t.Fatalf("scrolled view = %q, want older lines", scrolled)
+	}
+}
+
+func TestActivityPanelCanScrollIndependently(t *testing.T) {
+	m := model{width: 180, height: 40}
+	for i := 0; i < 8; i++ {
+		m.activities = append(m.activities, agentActivity{
+			At:      time.Date(2026, 5, 27, 12, i, 0, 0, time.UTC),
+			Source:  agentActivitySession,
+			Agent:   "session",
+			Target:  fmt.Sprintf("target-%d", i),
+			State:   "working",
+			Message: fmt.Sprintf("message-%d", i),
+		})
+	}
+	activity := testPanelBounds(t, m, panelActivity)
+
+	m.handleMouse(tea.MouseMsg{Type: tea.MouseWheelDown, X: activity.x, Y: activity.y}, time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
+	if m.activityScroll != 3 {
+		t.Fatalf("activityScroll = %d, want 3", m.activityScroll)
+	}
+}
+
+func testPanelBounds(t *testing.T, m model, panel focusedPanel) panelBounds {
+	t.Helper()
+	for _, bounds := range m.panelBounds() {
+		if bounds.panel == panel {
+			return bounds
+		}
+	}
+	t.Fatalf("panel %q not found in bounds %#v", panel, m.panelBounds())
+	return panelBounds{}
+}
+
 func TestSplitWorkspaceHeightsAddsUpToRequestedHeight(t *testing.T) {
 	for _, height := range []int{2, 8, 14, 18, 19, 24, 32, 48} {
 		hostHeight, previewHeight := splitWorkspaceHeights(height)

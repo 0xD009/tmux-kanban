@@ -126,6 +126,7 @@ func (m *model) moveReviewCursor(delta int) {
 	queue, moved := (core.ReviewQueue{Cursor: m.reviewCursor, CursorKey: m.reviewCursorKey}).Move(reviewQueueKeys(items), delta)
 	if moved {
 		m.preview = previewState{}
+		m.resetPreviewScroll()
 	}
 	m.reviewCursor = queue.Cursor
 	m.reviewCursorKey = queue.CursorKey

@@ -11,21 +11,55 @@ import (
 )
 
 func (m *model) handleMouse(msg tea.MouseMsg, now time.Time) {
+	hitPanel := m.panelAt(msg.X, msg.Y)
+	if msg.Type == tea.MouseLeft {
+		if hitPanel != panelNone {
+			m.focusedPanel = hitPanel
+			if label := focusPanelLabel(hitPanel); label != "" {
+				m.status = "focus: " + label
+			}
+		}
+		return
+	}
+
 	direction := wheelDirection(msg)
 	if direction == 0 {
 		return
 	}
 
-	if direction == m.lastWheelDirection && now.Sub(m.lastWheelAt) < wheelThrottleInterval {
+	panel := hitPanel
+	if panel == panelNone {
+		panel = m.focusedPanel
+	}
+	if direction == m.lastWheelDirection && panel == m.lastWheelPanel && now.Sub(m.lastWheelAt) < wheelThrottleInterval {
 		return
 	}
 
 	m.lastWheelAt = now
 	m.lastWheelDirection = direction
-	if m.viewMode == viewReview {
+	m.lastWheelPanel = panel
+	m.moveFocusedPanel(panel, direction)
+}
+
+func (m *model) moveFocusedPanel(panel focusedPanel, direction int) {
+	if panel != panelNone {
+		m.focusedPanel = panel
+	}
+	switch panel {
+	case panelPreview:
+		m.scrollPreview(direction)
+	case panelActivity:
+		m.scrollActivity(direction)
+	case panelReviewQueue:
 		m.moveReviewCursor(direction)
-	} else {
+	case panelExplorer, panelKanban:
 		m.moveCursor(direction)
+	default:
+		if m.viewMode == viewReview {
+			m.moveReviewCursor(direction)
+		} else {
+			m.moveCursor(direction)
+		}
 	}
 }
 
@@ -44,6 +78,7 @@ func (m *model) moveCursor(delta int) {
 	rows := m.rows()
 	if len(rows) == 0 {
 		m.cursor = 0
+		m.resetPreviewScroll()
 		return
 	}
 
@@ -54,7 +89,40 @@ func (m *model) moveCursor(delta int) {
 	if next >= len(rows) {
 		next = len(rows) - 1
 	}
+	if next != m.cursor {
+		m.cursor = next
+		m.resetPreviewScroll()
+		return
+	}
 	m.cursor = next
+}
+
+func (m *model) scrollPreview(direction int) {
+	step := 3
+	if direction < 0 {
+		m.previewScroll += step
+	} else {
+		m.previewScroll -= step
+	}
+	if m.previewScroll < 0 {
+		m.previewScroll = 0
+	}
+}
+
+func (m *model) resetPreviewScroll() {
+	m.previewScroll = 0
+}
+
+func (m *model) scrollActivity(direction int) {
+	step := 3
+	if direction > 0 {
+		m.activityScroll += step
+	} else {
+		m.activityScroll -= step
+	}
+	if m.activityScroll < 0 {
+		m.activityScroll = 0
+	}
 }
 
 func (m *model) toggleSelected() {

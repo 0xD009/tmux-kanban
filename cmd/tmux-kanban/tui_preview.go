@@ -229,7 +229,7 @@ func (m model) renderPreviewPanel(width int, height int, topRow int, leftCol int
 	if len(hermesLines) > 0 && remaining > len(hermesLines)+2 {
 		contentHeight = remaining - len(hermesLines) - 1
 	}
-	lines = append(lines, renderPreviewContent(selected, preview, lineWidth, contentHeight)...)
+	lines = append(lines, m.renderPreviewContent(selected, preview, lineWidth, contentHeight)...)
 	if len(hermesLines) > 0 && remaining > len(hermesLines)+2 {
 		lines = append(lines, "")
 		lines = append(lines, hermesLines...)
@@ -385,7 +385,7 @@ func renderPreviewMeta(meta string, width int) string {
 	return previewBorderStyle.Render(ansi.Truncate(meta, width, "..."))
 }
 
-func renderPreviewContent(selected row, preview previewState, width int, height int) []string {
+func (m model) renderPreviewContent(selected row, preview previewState, width int, height int) []string {
 	if height <= 0 {
 		return nil
 	}
@@ -426,7 +426,7 @@ func renderPreviewContent(selected row, preview previewState, width int, height 
 		frameHeight = height
 	}
 
-	lines := tailPreviewLines(screenLines, width, frameHeight)
+	lines := scrolledPreviewLines(screenLines, width, frameHeight, m.previewScroll)
 	lines = append(lines, bridge...)
 	lines = append(lines, footer...)
 	return lines
@@ -475,11 +475,18 @@ func renderAgentBridgeLines(width int, screen agent.Screen, maxLines int) []stri
 }
 
 func tailPreviewLines(lines []string, width int, height int) []string {
+	return scrolledPreviewLines(lines, width, height, 0)
+}
+
+func scrolledPreviewLines(lines []string, width int, height int, scroll int) []string {
 	if height <= 0 {
 		return nil
 	}
 	if len(lines) > height {
-		lines = lines[len(lines)-height:]
+		scroll = clampInt(scroll, 0, len(lines)-height)
+		end := len(lines) - scroll
+		start := maxInt(0, end-height)
+		lines = lines[start:end]
 	}
 
 	out := make([]string, 0, len(lines))

@@ -186,6 +186,7 @@ func (m model) renderAgentActivity(width int, height int) string {
 		ruleStyle.Render(strings.Repeat("-", lineWidth)),
 		"",
 	}
+	headerLines := len(lines)
 
 	if len(m.activities) == 0 {
 		lines = append(lines, mutedStyle.Render("no activity yet"))
@@ -194,12 +195,10 @@ func (m model) renderAgentActivity(width int, height int) string {
 		return renderFixedPanel(width, innerHeight, lines)
 	}
 
-	for i := len(m.activities) - 1; i >= 0 && len(lines) < innerHeight; i-- {
+	content := make([]string, 0, len(m.activities)*3)
+	for i := len(m.activities) - 1; i >= 0; i-- {
 		activity := m.activities[i]
-		lines = append(lines, renderAgentActivityHeader(activity, lineWidth))
-		if len(lines) >= innerHeight {
-			break
-		}
+		content = append(content, renderAgentActivityHeader(activity, lineWidth))
 		target := strings.TrimSpace(activity.Target)
 		if target == "" {
 			target = "unknown target"
@@ -208,16 +207,18 @@ func (m model) renderAgentActivity(width int, height int) string {
 		if isHermesAnswerActivity(activity) {
 			targetPrefix = "Q: "
 		}
-		lines = append(lines, mutedStyle.Render(ansi.Truncate(targetPrefix+target, lineWidth, "...")))
-		if len(lines) >= innerHeight {
-			break
-		}
+		content = append(content, mutedStyle.Render(ansi.Truncate(targetPrefix+target, lineWidth, "...")))
 		if message := strings.TrimSpace(activity.Message); message != "" {
-			messageLines := renderAgentActivityMessageLines(activity, lineWidth, innerHeight-len(lines))
-			lines = append(lines, messageLines...)
+			content = append(content, renderAgentActivityMessageLines(activity, lineWidth, 3)...)
 		}
 	}
 
+	contentHeight := maxInt(0, innerHeight-headerLines)
+	if len(content) > contentHeight {
+		start := clampInt(m.activityScroll, 0, len(content)-contentHeight)
+		content = content[start : start+contentHeight]
+	}
+	lines = append(lines, content...)
 	return renderFixedPanel(width, innerHeight, lines)
 }
 
