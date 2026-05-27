@@ -59,6 +59,7 @@ func commandCandidateCatalog() []commandCandidate {
 		{Text: "mesh skill-root ", Description: "set mesh skill root"},
 		{Text: "mesh memory ", Description: "set mesh memory root"},
 		{Text: "set qq ", Display: "set qq on/off", Description: "toggle QQ notify"},
+		{Text: "set terminal_review ", Display: "set terminal_review on/off", Description: "toggle terminal review alert"},
 		{Text: "set hermes ", Display: "set hermes on/off", Description: "toggle Hermes"},
 		{Text: "set hermes.auto_review ", Display: "set hermes.auto_review on/off", Description: "toggle auto review"},
 		{Text: "set hermes.auto_review all ", Display: "set hermes.auto_review all on/off", Description: "set global auto review"},

@@ -155,7 +155,7 @@ func (m model) executeCommand(input string) (model, tea.Cmd) {
 	args := fields[1:]
 	switch name {
 	case "help", "?":
-		m.status = "commands: refresh | view tree/review | session open/close | memory update scope | mesh on/off/status/policy | set qq/hermes/hermes.auto_review/hermes.done_advice/hermes.auto_done/hermes.idle_advice/hermes.auto_idle/mesh.* | status idle/working/need-review/done | notify | snapshot"
+		m.status = "commands: refresh | view tree/review | session open/close | memory update scope | mesh on/off/status/policy | set qq/terminal_review/hermes/hermes.auto_review/hermes.done_advice/hermes.auto_done/hermes.idle_advice/hermes.auto_idle/mesh.* | status idle/working/need-review/done | notify | snapshot"
 	case "refresh", "scan", "r":
 		return m.startScanModel()
 	case "tree":
@@ -173,12 +173,18 @@ func (m model) executeCommand(input string) (model, tea.Cmd) {
 	case "set":
 		return m, m.executeSetCommand(args)
 	case "settings":
-		m.status = fmt.Sprintf("settings: qq=%s hermes=%s hermes.auto_review=%s hermes.done_advice=%s hermes.auto_done=%s hermes.idle_advice=%s hermes.auto_idle=%s hermes.scopes=%d mesh=%s view=%s", onOff(m.cfg.Notification.QQEnabled), onOff(m.cfg.Hermes.Enabled), onOff(m.cfg.Hermes.AutoReview), onOff(m.cfg.Hermes.DoneAdvice), onOff(m.cfg.Hermes.AutoDone), onOff(m.cfg.Hermes.IdleAdvice), onOff(m.cfg.Hermes.AutoIdle), len(m.cfg.Hermes.Scopes), onOff(m.cfg.AgentMesh.Enabled), m.viewMode)
+		m.status = fmt.Sprintf("settings: qq=%s terminal_review=%s hermes=%s hermes.auto_review=%s hermes.done_advice=%s hermes.auto_done=%s hermes.idle_advice=%s hermes.auto_idle=%s hermes.scopes=%d mesh=%s view=%s", onOff(m.cfg.Notification.QQEnabled), onOff(m.cfg.Notification.TerminalReview), onOff(m.cfg.Hermes.Enabled), onOff(m.cfg.Hermes.AutoReview), onOff(m.cfg.Hermes.DoneAdvice), onOff(m.cfg.Hermes.AutoDone), onOff(m.cfg.Hermes.IdleAdvice), onOff(m.cfg.Hermes.AutoIdle), len(m.cfg.Hermes.Scopes), onOff(m.cfg.AgentMesh.Enabled), m.viewMode)
 	case "qq":
 		m.executeBoolSettingCommand("qq", args, func(value bool) {
 			m.cfg.Notification.QQEnabled = value
 			m.status = "QQ notification " + onOff(value)
 		})
+	case "terminal_review":
+		m.executeBoolSettingCommand("terminal_review", args, func(value bool) {
+			m.cfg.Notification.TerminalReview = value
+			m.status = "terminal review notification " + onOff(value)
+		})
+		return m, m.syncReviewTerminalTitleCmd()
 	case "hermes":
 		m.setHermesScopedBool(args, func(value bool) {
 			m.cfg.Hermes.Enabled = value

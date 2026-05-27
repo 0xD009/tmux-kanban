@@ -11,7 +11,7 @@ import (
 
 func (m *model) executeSetCommand(args []string) tea.Cmd {
 	if len(args) < 2 {
-		m.status = "usage: set qq|hermes|hermes.auto_review|hermes.done_advice|hermes.auto_done|hermes.idle_advice|hermes.auto_idle|status <on|off|value>"
+		m.status = "usage: set qq|terminal_review|hermes|hermes.auto_review|hermes.done_advice|hermes.auto_done|hermes.idle_advice|hermes.auto_idle|status <on|off|value>"
 		return nil
 	}
 
@@ -23,6 +23,12 @@ func (m *model) executeSetCommand(args []string) tea.Cmd {
 			m.cfg.Notification.QQEnabled = value
 			m.status = "QQ notification " + onOff(value)
 		})
+	case "terminal_review", "review_terminal", "notification.terminal_review":
+		m.executeBoolSettingCommand("terminal_review", valueArgs, func(value bool) {
+			m.cfg.Notification.TerminalReview = value
+			m.status = "terminal review notification " + onOff(value)
+		})
+		return m.syncReviewTerminalTitleCmd()
 	case "hermes", "hermes.enabled":
 		m.setHermesScopedBool(valueArgs, func(value bool) {
 			m.cfg.Hermes.Enabled = value
@@ -190,7 +196,7 @@ func (m *model) setActiveSessionStatus(status sessionStatus) tea.Cmd {
 			State:   statusLabel(status),
 			Message: "manual status set",
 		})
-		return m.autoHermesNextStepCmd(hadOldStatus, oldStatus, status, item.SessionKey)
+		return tea.Batch(m.autoHermesNextStepCmd(hadOldStatus, oldStatus, status, item.SessionKey), m.syncReviewTerminalTitleCmd())
 	}
 
 	ref, ok := m.selectedSessionRef()
@@ -213,5 +219,5 @@ func (m *model) setActiveSessionStatus(status sessionStatus) tea.Cmd {
 		State:   statusLabel(status),
 		Message: "manual status set",
 	})
-	return m.autoHermesNextStepCmd(hadOldStatus, oldStatus, status, ref.Key)
+	return tea.Batch(m.autoHermesNextStepCmd(hadOldStatus, oldStatus, status, ref.Key), m.syncReviewTerminalTitleCmd())
 }

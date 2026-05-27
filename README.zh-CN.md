@@ -167,6 +167,7 @@ Hermes、QQ 和运行时设置：
 :settings
 :set qq on
 :set qq off
+:set terminal_review on
 :set hermes on
 :set hermes.auto_review on
 :set hermes.done_advice on
@@ -181,7 +182,7 @@ Hermes、QQ 和运行时设置：
 :notify optional message for Hermes
 ```
 
-`:notify` 走配置里的 Hermes/QQ 通知路径，仍然需要 `notification.qq_enabled: true`。Hermes auto review 的策略故意比较保守：自动选择需要 Hermes 返回明确的 `CHOOSE <number>` 或 `SKIP`。
+`:notify` 走配置里的 Hermes/QQ 通知路径，仍然需要 `notification.qq_enabled: true`。终端 bell/title 的 NEED REVIEW 提醒默认关闭，因为 TUI 里已经能看到 review queue；需要时可用 `notification.terminal_review: true` 或 `:set terminal_review on` 打开。Hermes auto review 的策略故意比较保守：自动选择需要 Hermes 返回明确的 `CHOOSE <number>` 或 `SKIP`。如果 Hermes auto review 和 QQ 通知都已开启，Hermes 每次自动审查的决定都会额外转发一份到 QQ，方便人工复核。
 Hermes 设置支持全局默认，也支持 host/session 覆盖：`all on|off` 显式修改全局默认，`host <host|all> on|off` 影响某台机器或作为 scope 通配符，`session [host/]session|all on|off` 影响某个 session 或所有 session，`here on|off` 作用于当前选中的 session。done/idle next-step 也分成建议和自动采纳两层：`hermes.done_advice` / `hermes.idle_advice` 只让 Hermes 给出下一步建议，`hermes.auto_done` / `hermes.auto_idle` 只有在 Hermes 明确回复 `SEND: <message>` 时才会把消息发回对应 agent pane。
 Hermes 的回复、自动采纳、跳过、发送下一步和 memory 写入都会追加到 `hermes.work_log`。默认路径是 `~/.local/state/tmux-kanban/hermes-worklog.jsonl`，用于后续人工审查。
 

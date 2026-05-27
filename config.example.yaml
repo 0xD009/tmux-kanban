@@ -87,6 +87,8 @@ hermes:
 
 notification:
   qq_enabled: false
+  # Terminal bell/title NEED REVIEW alert. Off by default because the TUI already shows review state.
+  terminal_review: false
 
 debug:
   snapshot_dir: ""

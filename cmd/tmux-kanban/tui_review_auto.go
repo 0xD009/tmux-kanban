@@ -55,6 +55,7 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 	}
 	action, ok := parseHermesAutoReviewAction(advice)
 	if !ok {
+		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, "needs human review")
 		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
 		entry.Advice = advice
 		entry.ParsedAction = "unactionable"
@@ -69,11 +70,16 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 			State:   "needs human",
 			Message: "auto advice was not actionable",
 		})
-		return nil
+		return auditCmd
 	}
 
 	switch action.kind {
 	case "choose":
+		decision := "choose " + action.choice
+		if action.reason != "" {
+			decision += ": " + action.reason
+		}
+		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, decision)
 		cmd := m.sendChoiceForReviewItem(item, hostLabel, lines, action.choice)
 		if cmd == nil {
 			entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
@@ -85,7 +91,7 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 			addEffectiveHermesConditions(&entry, hermesCfg)
 			m.appendHermesWorkLog(entry)
 			m.status = "Hermes auto choice " + action.choice + " is not visible"
-			return nil
+			return auditCmd
 		}
 		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
 		entry.Advice = advice
@@ -96,8 +102,13 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 		addEffectiveHermesConditions(&entry, hermesCfg)
 		m.appendHermesWorkLog(entry)
 		m.status = "Hermes auto chose " + action.choice + " for " + item.HostName + "/" + item.SessionName
-		return cmd
+		return tea.Batch(cmd, auditCmd)
 	case "skip":
+		decision := "skip"
+		if action.reason != "" {
+			decision += ": " + action.reason
+		}
+		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, decision)
 		m.skipReviewItemByKey(item.SessionKey, "Hermes")
 		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
 		entry.Advice = advice
@@ -107,8 +118,9 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 		addEffectiveHermesConditions(&entry, hermesCfg)
 		m.appendHermesWorkLog(entry)
 		m.status = "Hermes auto skipped " + item.HostName + "/" + item.SessionName
-		return nil
+		return tea.Batch(m.syncReviewTerminalTitleCmd(), auditCmd)
 	default:
+		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, action.kind)
 		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
 		entry.Advice = advice
 		entry.ParsedAction = action.kind
@@ -116,7 +128,24 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 		addEffectiveHermesConditions(&entry, hermesCfg)
 		m.appendHermesWorkLog(entry)
 		m.status = "Hermes auto review needs human review"
+		return auditCmd
+	}
+}
+
+func (m *model) hermesAutoReviewAuditQQCmd(item reviewItem, hostLabel string, lines []string, advice string, decision string) tea.Cmd {
+	if !m.cfg.Notification.QQEnabled {
 		return nil
+	}
+	cfg := m.cfg
+	if hermesCfg, ok := m.hermesConfigForReviewItem(item); ok {
+		cfg = configWithHermes(cfg, hermesCfg)
+	}
+	target := reviewItemDisplayLabel(item, hostLabel)
+	return func() tea.Msg {
+		return hermesAutoReviewAuditResult{
+			target: target,
+			result: notifyQQForHermesAutoReview(cfg, item, hostLabel, lines, advice, decision),
+		}
 	}
 }
 
@@ -133,7 +162,7 @@ func (m *model) sendChoiceForReviewItem(item reviewItem, hostLabel string, lines
 		return nil
 	}
 	m.markReviewChoiceSent(item, hostLabel)
-	return sendKeySequenceCmd("choice "+digit, m.hosts[item.Row.hostIndex].host, item.Row.attachTarget, keys...)
+	return tea.Batch(sendKeySequenceCmd("choice "+digit, m.hosts[item.Row.hostIndex].host, item.Row.attachTarget, keys...), m.syncReviewTerminalTitleCmd())
 }
 
 func (m *model) markReviewChoiceSent(item reviewItem, hostLabel string) {

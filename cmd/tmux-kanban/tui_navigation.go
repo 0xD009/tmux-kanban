@@ -210,5 +210,5 @@ func (m *model) cycleSelectedSessionStatus() tea.Cmd {
 		State:   statusLabel(next),
 		Message: "manual status cycle",
 	})
-	return m.autoHermesNextStepCmd(hadOldStatus, oldStatus, next, ref.Key)
+	return tea.Batch(m.autoHermesNextStepCmd(hadOldStatus, oldStatus, next, ref.Key), m.syncReviewTerminalTitleCmd())
 }

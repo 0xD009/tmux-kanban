@@ -1331,6 +1331,44 @@ func TestApplyHermesAutoReviewChoosesVisibleChoice(t *testing.T) {
 	}
 }
 
+func TestApplyHermesAutoReviewReturnsAuditCommandForUnactionableAdvice(t *testing.T) {
+	host := config.Host{Name: "local", Local: true}
+	session := tmuxscan.Session{
+		ID:   "$1",
+		Name: "agents",
+		Windows: []tmuxscan.Window{{
+			ID:    "@1",
+			Index: "0",
+			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex}},
+		}},
+	}
+	key := sessionStatusKey(host, session)
+	item := reviewItem{
+		SessionKey:  key,
+		HostName:    "local",
+		SessionName: "agents",
+		Agent:       tmuxscan.AgentCodex,
+		Row:         row{hostIndex: 0, attachTarget: "%1"},
+	}
+	m := model{
+		cfg: config.Config{
+			Hermes:       config.HermesConfig{Enabled: true, AutoReview: true},
+			Notification: config.NotificationConfig{QQEnabled: true},
+		},
+		hosts:         []hostState{{host: host, snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}}, loaded: true}},
+		statuses:      map[string]sessionStatus{key: sessionNeedReview},
+		reviewTargets: map[string]selectedAgentTarget{key: {hostIndex: 0, target: "%1", agent: tmuxscan.AgentCodex}},
+	}
+
+	cmd := m.applyHermesAutoReview(item, "local", []string{"Do you want to continue?"}, "I cannot decide safely.")
+	if cmd == nil {
+		t.Fatalf("applyHermesAutoReview() cmd = nil, want QQ audit command")
+	}
+	if got := m.statuses[key]; got != sessionNeedReview {
+		t.Fatalf("status = %q, want need review left for human", got)
+	}
+}
+
 func TestAutoHermesReviewCmdStartsWhenEnteringNeedReview(t *testing.T) {
 	host := config.Host{Name: "local", Local: true}
 	session := tmuxscan.Session{
@@ -1706,6 +1744,36 @@ func TestHermesQQNotificationPromptIncludesContext(t *testing.T) {
 	}
 }
 
+func TestHermesAutoReviewAuditQQPromptIncludesDecisionAndAdvice(t *testing.T) {
+	item := reviewItem{
+		HostName:    "nebula",
+		SessionName: "agents",
+		Agent:       tmuxscan.AgentClaude,
+		Row:         row{attachTarget: "agents:0.1"},
+	}
+	prompt := hermesAutoReviewAuditQQPrompt(item, "nebula", []string{
+		"Run shell command?",
+		"> 1. Allow command",
+		"  2. Deny",
+	}, "CHOOSE 1: visible approval prompt", "choose 1: visible approval prompt")
+
+	for _, want := range []string{
+		`send_message(target="qqbot", message=...)`,
+		"auto review decision",
+		"Host: nebula",
+		"Session: agents",
+		"Target: agents:0.1",
+		"Hermes decision: choose 1",
+		"CHOOSE 1",
+		"1: Allow command",
+		"Run shell command?",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, prompt)
+		}
+	}
+}
+
 func TestNotifyQQForReviewItemsSkipsWhenDisabled(t *testing.T) {
 	result := notifyQQForReviewItems(config.Config{}, []cliReviewItem{{
 		Screen: cliScreen{NeedsReview: true},
@@ -1749,6 +1817,16 @@ func TestExecuteCommandTogglesRuntimeSettings(t *testing.T) {
 	}
 	if next.status != "QQ notification on" {
 		t.Fatalf("status = %q, want QQ notification on", next.status)
+	}
+	next, cmd = next.executeCommand("set terminal_review on")
+	if cmd != nil {
+		t.Fatalf("set terminal_review command returned cmd with empty review queue, want nil")
+	}
+	if !next.cfg.Notification.TerminalReview {
+		t.Fatalf("terminal_review = false, want true")
+	}
+	if next.status != "terminal review notification on" {
+		t.Fatalf("status = %q, want terminal review notification on", next.status)
 	}
 
 	next, _ = next.executeCommand("hermes off")
@@ -2473,7 +2551,7 @@ func TestNeedReviewBellOnlyWhenEnteringNeedReview(t *testing.T) {
 			bells := 0
 			writeTerminalBell = func() { bells++ }
 
-			cmd := needReviewBellCmd(tt.hadOld, tt.oldStatus, tt.nextStatus, false)
+			cmd := needReviewBellCmd(true, tt.hadOld, tt.oldStatus, tt.nextStatus, false)
 			if cmd == nil {
 				if tt.wantBell {
 					t.Fatalf("needReviewBellCmd() = nil, want bell command")
@@ -2493,9 +2571,16 @@ func TestNeedReviewBellOnlyWhenEnteringNeedReview(t *testing.T) {
 }
 
 func TestNeedReviewBellSkipsWhenHermesHandlesReview(t *testing.T) {
-	cmd := needReviewBellCmd(true, sessionWorking, sessionNeedReview, true)
+	cmd := needReviewBellCmd(true, true, sessionWorking, sessionNeedReview, true)
 	if cmd != nil {
 		t.Fatalf("needReviewBellCmd() with Hermes handling = %#v, want nil", cmd)
+	}
+}
+
+func TestNeedReviewBellDisabledByDefaultSetting(t *testing.T) {
+	cmd := needReviewBellCmd(false, true, sessionWorking, sessionNeedReview, false)
+	if cmd != nil {
+		t.Fatalf("needReviewBellCmd() with terminal review disabled = %#v, want nil", cmd)
 	}
 }
 
@@ -2505,6 +2590,124 @@ func TestNeedReviewTerminalAlertSequenceSetsTabTitle(t *testing.T) {
 		if !strings.Contains(sequence, want) {
 			t.Fatalf("terminal alert sequence missing %q: %#v", want, sequence)
 		}
+	}
+}
+
+func TestReviewTerminalTitleSequenceCanClearNeedReview(t *testing.T) {
+	sequence := string(reviewTerminalTitleSequence(false))
+	if strings.Contains(sequence, "NEED REVIEW") {
+		t.Fatalf("clear sequence should not contain NEED REVIEW: %#v", sequence)
+	}
+	for _, want := range []string{"\x1b]1;tmux-kanban\x1b\\", "\x1b]2;tmux-kanban\x1b\\"} {
+		if !strings.Contains(sequence, want) {
+			t.Fatalf("clear sequence missing %q: %#v", want, sequence)
+		}
+	}
+}
+
+func TestReviewTerminalTitleSyncTracksReviewQueue(t *testing.T) {
+	original := writeReviewTerminalTitle
+	defer func() { writeReviewTerminalTitle = original }()
+
+	calls := []bool{}
+	writeReviewTerminalTitle = func(active bool) {
+		calls = append(calls, active)
+	}
+
+	host := config.Host{Name: "local", Local: true}
+	session := tmuxscan.Session{
+		ID:   "$1",
+		Name: "agent",
+		Windows: []tmuxscan.Window{{
+			ID:    "@1",
+			Index: "0",
+			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex}},
+		}},
+	}
+	key := sessionStatusKey(host, session)
+	m := model{
+		cfg: config.Config{Notification: config.NotificationConfig{TerminalReview: true}},
+		hosts: []hostState{{
+			host:     host,
+			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}},
+			loaded:   true,
+		}},
+		statuses:      map[string]sessionStatus{key: sessionNeedReview},
+		reviewTargets: map[string]selectedAgentTarget{key: {hostIndex: 0, target: "%1", agent: tmuxscan.AgentCodex}},
+	}
+
+	cmd := m.syncReviewTerminalTitleCmd()
+	if cmd == nil {
+		t.Fatalf("syncReviewTerminalTitleCmd() = nil, want command to set title")
+	}
+	cmd()
+	if !m.reviewTitleActive {
+		t.Fatalf("reviewTitleActive = false, want true")
+	}
+	if !reflect.DeepEqual(calls, []bool{true}) {
+		t.Fatalf("title calls = %#v, want [true]", calls)
+	}
+
+	m.statuses[key] = sessionWorking
+	delete(m.reviewTargets, key)
+	cmd = m.syncReviewTerminalTitleCmd()
+	if cmd == nil {
+		t.Fatalf("syncReviewTerminalTitleCmd() = nil, want command to clear title")
+	}
+	cmd()
+	if m.reviewTitleActive {
+		t.Fatalf("reviewTitleActive = true, want false")
+	}
+	if !reflect.DeepEqual(calls, []bool{true, false}) {
+		t.Fatalf("title calls = %#v, want [true false]", calls)
+	}
+}
+
+func TestReviewTerminalTitleSyncDisabledDoesNotSetNeedReview(t *testing.T) {
+	original := writeReviewTerminalTitle
+	defer func() { writeReviewTerminalTitle = original }()
+
+	calls := []bool{}
+	writeReviewTerminalTitle = func(active bool) {
+		calls = append(calls, active)
+	}
+
+	host := config.Host{Name: "local", Local: true}
+	session := tmuxscan.Session{
+		ID:   "$1",
+		Name: "agent",
+		Windows: []tmuxscan.Window{{
+			ID:    "@1",
+			Index: "0",
+			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex}},
+		}},
+	}
+	key := sessionStatusKey(host, session)
+	m := model{
+		hosts: []hostState{{
+			host:     host,
+			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}},
+			loaded:   true,
+		}},
+		statuses:      map[string]sessionStatus{key: sessionNeedReview},
+		reviewTargets: map[string]selectedAgentTarget{key: {hostIndex: 0, target: "%1", agent: tmuxscan.AgentCodex}},
+	}
+
+	if cmd := m.syncReviewTerminalTitleCmd(); cmd != nil {
+		t.Fatalf("syncReviewTerminalTitleCmd() with terminal review disabled = %#v, want nil", cmd)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("title calls = %#v, want none", calls)
+	}
+
+	m.reviewTitleActive = true
+	cmd := m.syncReviewTerminalTitleCmd()
+	if cmd == nil {
+		t.Fatalf("syncReviewTerminalTitleCmd() disabled with active title = nil, want clear command")
+	}
+	cmd()
+	if !reflect.DeepEqual(calls, []bool{false}) {
+		t.Fatalf("title calls = %#v, want [false]", calls)
 	}
 }
 

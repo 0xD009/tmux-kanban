@@ -93,12 +93,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ui.KeyStatus:
 			if m.viewMode == viewReview {
 				m.skipReviewItem()
+				return m, m.syncReviewTerminalTitleCmd()
 			} else {
 				return m, m.cycleSelectedSessionStatus()
 			}
 		case ui.KeyUnskip:
 			if m.viewMode == viewReview {
 				m.unskipReviewItems()
+				return m, m.syncReviewTerminalTitleCmd()
 			}
 		case ui.KeyHermes:
 			if m.viewMode == viewReview {
@@ -203,9 +205,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			autoCmd := m.autoHermesReviewCmd(hadOldStatus, oldStatus, nextStatus, msg.key)
 			nextStepCmd := m.autoHermesNextStepCmd(hadOldStatus, oldStatus, nextStatus, msg.key)
-			bellCmd := needReviewBellCmd(hadOldStatus, oldStatus, nextStatus, autoCmd != nil)
-			if bellCmd != nil || autoCmd != nil || nextStepCmd != nil {
-				return m, tea.Batch(bellCmd, autoCmd, nextStepCmd, m.ensurePreview())
+			bellCmd := needReviewBellCmd(m.cfg.Notification.TerminalReview, hadOldStatus, oldStatus, nextStatus, autoCmd != nil)
+			titleCmd := m.syncReviewTerminalTitleCmd()
+			if bellCmd != nil || autoCmd != nil || nextStepCmd != nil || titleCmd != nil {
+				return m, tea.Batch(bellCmd, autoCmd, nextStepCmd, titleCmd, m.ensurePreview())
 			}
 		}
 	case hermesQueryResult:
@@ -391,6 +394,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = fmt.Sprintf("QQ notification sent (%d need review)", result.NeedsReviewCount)
 		default:
 			m.status = "QQ notification skipped: " + result.Reason
+		}
+	case hermesAutoReviewAuditResult:
+		result := msg.result
+		switch {
+		case result.Error != "":
+			m.status = "Hermes auto review QQ audit failed: " + clipString(result.Error, 80)
+			m.addAgentActivity(agentActivity{
+				Source:  agentActivityReview,
+				Agent:   "Hermes",
+				Target:  msg.target,
+				State:   "audit error",
+				Message: clipString(result.Error, 80),
+			})
+		case result.Sent:
+			m.status = "Hermes auto review audit sent to QQ"
+			m.addAgentActivity(agentActivity{
+				Source:  agentActivityReview,
+				Agent:   "Hermes",
+				Target:  msg.target,
+				State:   "audit sent",
+				Message: "sent auto review decision to QQ",
+			})
 		}
 	case snapshotResult:
 		if msg.err != "" {

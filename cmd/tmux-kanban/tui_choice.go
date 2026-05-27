@@ -28,7 +28,7 @@ func (m *model) sendChoice(digit string) tea.Cmd {
 
 	host := m.hosts[target.hostIndex].host
 	m.markChoiceSent(target)
-	return sendKeySequenceCmd("choice "+digit, host, target.target, keys...)
+	return tea.Batch(sendKeySequenceCmd("choice "+digit, host, target.target, keys...), m.syncReviewTerminalTitleCmd())
 }
 
 func (m *model) markChoiceSent(target selectedAgentTarget) {

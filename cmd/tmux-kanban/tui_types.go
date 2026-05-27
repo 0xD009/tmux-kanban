@@ -34,9 +34,10 @@ type model struct {
 	previewScroll  int
 	activityScroll int
 
-	reviewCursor    int
-	reviewCursorKey string
-	reviewSkipped   map[string]bool
+	reviewCursor      int
+	reviewCursorKey   string
+	reviewSkipped     map[string]bool
+	reviewTitleActive bool
 
 	lastWheelAt        time.Time
 	lastWheelDirection int
@@ -189,6 +190,11 @@ type sendResult struct {
 }
 
 type qqNotifyResult struct {
+	result cliNotificationResult
+}
+
+type hermesAutoReviewAuditResult struct {
+	target string
 	result cliNotificationResult
 }
 

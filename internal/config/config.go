@@ -90,7 +90,8 @@ type HermesScopeConfig struct {
 }
 
 type NotificationConfig struct {
-	QQEnabled bool `yaml:"qq_enabled"`
+	QQEnabled      bool `yaml:"qq_enabled"`
+	TerminalReview bool `yaml:"terminal_review"`
 }
 
 type DebugConfig struct {

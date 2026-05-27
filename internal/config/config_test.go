@@ -40,6 +40,9 @@ func TestLoadHermesConfigDefaults(t *testing.T) {
 	if cfg.Notification.QQEnabled {
 		t.Fatalf("notification qq_enabled = true, want false")
 	}
+	if cfg.Notification.TerminalReview {
+		t.Fatalf("notification terminal_review = true, want false")
+	}
 	if !cfg.MainAgent.Enabled {
 		t.Fatalf("main agent enabled = false, want true")
 	}
@@ -123,7 +126,7 @@ func TestHermesScopeAllMatchesHostAndSession(t *testing.T) {
 
 func TestLoadNotificationConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte("notification:\n  qq_enabled: true\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("notification:\n  qq_enabled: true\n  terminal_review: true\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -133,6 +136,9 @@ func TestLoadNotificationConfig(t *testing.T) {
 	}
 	if !cfg.Notification.QQEnabled {
 		t.Fatalf("notification qq_enabled = false, want true")
+	}
+	if !cfg.Notification.TerminalReview {
+		t.Fatalf("notification terminal_review = false, want true")
 	}
 }
 
