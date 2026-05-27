@@ -2595,8 +2595,20 @@ func TestMouseFocusRoutesWheelToPanelUnderPointer(t *testing.T) {
 	}
 }
 
-func TestMouseClickFocusRoutesKeyboardMovement(t *testing.T) {
-	m := model{width: 120, height: 40}
+func TestKeyboardNavigationIgnoresPreviewFocus(t *testing.T) {
+	m := model{
+		width:  120,
+		height: 40,
+		hosts: []hostState{{
+			host: config.Host{Name: "local", SSH: "local"},
+			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{
+				{ID: "$1", Name: "one"},
+				{ID: "$2", Name: "two"},
+			}},
+			loaded: true,
+		}},
+		expanded: map[string]bool{"host:0": true},
+	}
 	preview := testPanelBounds(t, m, panelPreview)
 
 	m.handleMouse(tea.MouseMsg{Type: tea.MouseLeft, X: preview.x, Y: preview.y}, time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
@@ -2604,9 +2616,44 @@ func TestMouseClickFocusRoutesKeyboardMovement(t *testing.T) {
 		t.Fatalf("focusedPanel = %q, want preview", m.focusedPanel)
 	}
 
-	m.moveFocusedPanel(m.focusedPanel, -1)
-	if m.previewScroll != 3 {
-		t.Fatalf("previewScroll after focused key movement = %d, want 3", m.previewScroll)
+	nextModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
+	next := nextModel.(model)
+	if next.cursor != 1 {
+		t.Fatalf("cursor after j with preview focus = %d, want 1", next.cursor)
+	}
+	if next.previewScroll != 0 {
+		t.Fatalf("previewScroll after j = %d, want unchanged", next.previewScroll)
+	}
+}
+
+func TestPageKeysScrollPreviewWithoutMovingCursor(t *testing.T) {
+	m := model{
+		width:  120,
+		height: 40,
+		hosts: []hostState{{
+			host: config.Host{Name: "local", SSH: "local"},
+			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{
+				{ID: "$1", Name: "one"},
+				{ID: "$2", Name: "two"},
+			}},
+			loaded: true,
+		}},
+		expanded: map[string]bool{"host:0": true},
+	}
+
+	nextModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyPgUp})
+	next := nextModel.(model)
+	if next.previewScroll != 3 {
+		t.Fatalf("previewScroll after page up = %d, want 3", next.previewScroll)
+	}
+	if next.cursor != 0 {
+		t.Fatalf("cursor after page up = %d, want unchanged", next.cursor)
+	}
+
+	nextModel, _ = next.Update(tea.KeyMsg{Type: tea.KeyPgDown})
+	next = nextModel.(model)
+	if next.previewScroll != 0 {
+		t.Fatalf("previewScroll after page down = %d, want 0", next.previewScroll)
 	}
 }
 

@@ -81,9 +81,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.toggleSelected()
 			}
 		case "up", "k":
-			m.moveFocusedPanel(m.focusedPanel, -1)
+			m.movePrimaryCursor(-1)
 		case "down", "j":
-			m.moveFocusedPanel(m.focusedPanel, 1)
+			m.movePrimaryCursor(1)
+		case "pgup", "pageup":
+			m.scrollPreview(-1)
+		case "pgdown", "pagedown":
+			m.scrollPreview(1)
 		case ui.KeyAttach:
 			return m, m.attachSelected()
 		case ui.KeyStatus:

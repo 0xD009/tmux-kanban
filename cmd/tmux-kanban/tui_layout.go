@@ -74,9 +74,9 @@ func (m model) helpLine() string {
 	case m.control.active:
 		return "relay mode | j/k or arrows move remote choice | enter choose | tab next | esc stop"
 	case m.viewMode == viewReview:
-		return "review view | : command | tab/v tree | j/k move | 1-9 choose | h ask Hermes | s skip | u unskip | d snapshot"
+		return "review view | : command | tab/v tree | j/k move | pgup/pgdn preview | 1-9 choose | h ask Hermes | s skip | u unskip | d snapshot"
 	default:
-		return "tree view | : command | tab/v review | q quit | r refresh | j/k move | enter toggle | 1-9 choose | a attach | s status | d snapshot"
+		return "tree view | : command | tab/v review | q quit | r refresh | j/k move | pgup/pgdn preview | enter toggle | a attach | s status | d snapshot"
 	}
 }
 

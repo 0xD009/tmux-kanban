@@ -55,11 +55,15 @@ func (m *model) moveFocusedPanel(panel focusedPanel, direction int) {
 	case panelExplorer, panelKanban:
 		m.moveCursor(direction)
 	default:
-		if m.viewMode == viewReview {
-			m.moveReviewCursor(direction)
-		} else {
-			m.moveCursor(direction)
-		}
+		m.movePrimaryCursor(direction)
+	}
+}
+
+func (m *model) movePrimaryCursor(direction int) {
+	if m.viewMode == viewReview {
+		m.moveReviewCursor(direction)
+	} else {
+		m.moveCursor(direction)
 	}
 }
 
