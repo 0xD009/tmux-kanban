@@ -102,7 +102,7 @@ func (m *model) moveCursor(delta int) {
 }
 
 func (m *model) scrollPreview(direction int) {
-	step := 3
+	step := 5
 	if direction < 0 {
 		m.previewScroll += step
 	} else {
