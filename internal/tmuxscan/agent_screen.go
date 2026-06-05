@@ -143,10 +143,50 @@ func currentScreenStart(lines []string, choices []parsedChoice) int {
 	currentStart := tailStart
 	for _, choice := range choices {
 		if choice.Line >= tailStart && choiceIsCurrentIdlePrompt(choice.Choice) {
-			currentStart = choice.Line
+			return choice.Line
 		}
 	}
+	if reviewStart := currentReviewStart(lines, choices); reviewStart >= 0 {
+		return reviewStart
+	}
 	return currentStart
+}
+
+func currentReviewStart(lines []string, choices []parsedChoice) int {
+	reviewTailStart := len(lines) - 30
+	if reviewTailStart < 0 {
+		reviewTailStart = 0
+	}
+
+	reviewPromptStart := -1
+	for lineIndex := reviewTailStart; lineIndex < len(lines); lineIndex++ {
+		if looksNeedsReview(lines[lineIndex]) {
+			reviewPromptStart = lineIndex
+		}
+	}
+	if reviewPromptStart >= 0 {
+		for _, choice := range choices {
+			if choice.Line >= reviewPromptStart {
+				return reviewPromptStart
+			}
+		}
+	}
+
+	choiceBlockStart := -1
+	previousChoiceLine := -1
+	for _, choice := range choices {
+		if choice.Line < reviewTailStart {
+			continue
+		}
+		if previousChoiceLine == -1 || choice.Line > previousChoiceLine+1 {
+			choiceBlockStart = choice.Line
+		}
+		previousChoiceLine = choice.Line
+		if choice.Choice.Selected && selectedChoiceNeedsReview(choice.Choice) {
+			return choiceBlockStart
+		}
+	}
+	return -1
 }
 
 func currentScreenNeedsReview(lines []string, choices []parsedChoice, currentStart int) bool {

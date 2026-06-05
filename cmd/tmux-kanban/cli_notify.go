@@ -74,12 +74,12 @@ func notifyQQForHermesAutoReview(cfg config.Config, item reviewItem, hostLabel s
 		host = strings.TrimSpace(hostLabel)
 	}
 	result := cliNotificationResult{
-		Enabled:          cfg.Notification.QQEnabled,
+		Enabled:          config.AutoReviewAuditQQEnabled(cfg.Notification.AutoReviewAuditQQ),
 		Target:           qqNotificationTarget,
 		NeedsReviewCount: 1,
 	}
-	if !cfg.Notification.QQEnabled {
-		result.Reason = "notification.qq_enabled is false"
+	if !config.AutoReviewAuditQQEnabled(cfg.Notification.AutoReviewAuditQQ) {
+		result.Reason = "notification.auto_review_audit_qq is off"
 		return result
 	}
 

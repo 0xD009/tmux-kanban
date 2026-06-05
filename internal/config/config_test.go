@@ -43,6 +43,9 @@ func TestLoadHermesConfigDefaults(t *testing.T) {
 	if cfg.Notification.TerminalReview {
 		t.Fatalf("notification terminal_review = true, want false")
 	}
+	if cfg.Notification.AutoReviewAuditQQ != AutoReviewAuditQQOff {
+		t.Fatalf("notification auto_review_audit_qq = %q, want off", cfg.Notification.AutoReviewAuditQQ)
+	}
 	if !cfg.MainAgent.Enabled {
 		t.Fatalf("main agent enabled = false, want true")
 	}
@@ -126,7 +129,7 @@ func TestHermesScopeAllMatchesHostAndSession(t *testing.T) {
 
 func TestLoadNotificationConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte("notification:\n  qq_enabled: true\n  terminal_review: true\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("notification:\n  qq_enabled: true\n  terminal_review: true\n  auto_review_audit_qq: uncertain\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -139,6 +142,24 @@ func TestLoadNotificationConfig(t *testing.T) {
 	}
 	if !cfg.Notification.TerminalReview {
 		t.Fatalf("notification terminal_review = false, want true")
+	}
+	if cfg.Notification.AutoReviewAuditQQ != AutoReviewAuditQQUncertain {
+		t.Fatalf("notification auto_review_audit_qq = %q, want uncertain", cfg.Notification.AutoReviewAuditQQ)
+	}
+}
+
+func TestLoadNotificationAutoReviewAuditQQBoolCompat(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("notification:\n  auto_review_audit_qq: true\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Notification.AutoReviewAuditQQ != AutoReviewAuditQQAll {
+		t.Fatalf("notification auto_review_audit_qq = %q, want all", cfg.Notification.AutoReviewAuditQQ)
 	}
 }
 

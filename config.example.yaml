@@ -87,6 +87,9 @@ hermes:
 
 notification:
   qq_enabled: false
+  # Send Hermes auto-review decisions to QQ for audit: off, uncertain, or all.
+  # uncertain only sends unactionable/failed decisions that may need human review.
+  auto_review_audit_qq: off
   # Terminal bell/title NEED REVIEW alert. Off by default because the TUI already shows review state.
   terminal_review: false
 

@@ -128,6 +128,39 @@ func TestAnalyzeAgentScreenDetectsReviewChoiceWhenPromptScrolledOff(t *testing.T
 	}
 }
 
+func TestAnalyzeAgentScreenDetectsApprovalBeforeClaudeTodo(t *testing.T) {
+	screen := AnalyzeAgentScreen([]string{
+		"Read file",
+		"",
+		"  Read(/tmp/n6.png)",
+		"",
+		"Do you want to proceed?",
+		"❯ 1. Yes",
+		"  2. Yes, allow reading from tmp/ during this session",
+		"  3. No",
+		"",
+		"Esc to cancel · Tab to amend",
+		"",
+		"  6 tasks (4 done, 1 in progress, 1 open)",
+		"  ◼ Build natural-style PPT slides 3-9",
+		"  ◻ Build natural-style Word report",
+		"  ✔ Redesign PPT with stronger visual system",
+		"  ✔ Redesign Word report typography & layout",
+		"  ✔ Expand Word doc with deeper analysis",
+		"  … +1 completed",
+	})
+
+	if !screen.NeedsReview {
+		t.Fatalf("screen needs review = false, want true")
+	}
+	if len(screen.Choices) != 3 {
+		t.Fatalf("choices = %d, want 3", len(screen.Choices))
+	}
+	if screen.SelectedChoice != 0 {
+		t.Fatalf("selected choice = %d, want 0", screen.SelectedChoice)
+	}
+}
+
 func TestAnalyzeAgentScreenDetectsCheckboxChoices(t *testing.T) {
 	screen := AnalyzeAgentScreen([]string{
 		"> [x] Edit file",

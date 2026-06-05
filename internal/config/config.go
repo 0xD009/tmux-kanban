@@ -90,8 +90,79 @@ type HermesScopeConfig struct {
 }
 
 type NotificationConfig struct {
-	QQEnabled      bool `yaml:"qq_enabled"`
-	TerminalReview bool `yaml:"terminal_review"`
+	QQEnabled         bool                  `yaml:"qq_enabled"`
+	TerminalReview    bool                  `yaml:"terminal_review"`
+	AutoReviewAuditQQ AutoReviewAuditQQMode `yaml:"auto_review_audit_qq"`
+}
+
+type AutoReviewAuditQQMode string
+
+const (
+	AutoReviewAuditQQOff       AutoReviewAuditQQMode = "off"
+	AutoReviewAuditQQUncertain AutoReviewAuditQQMode = "uncertain"
+	AutoReviewAuditQQAll       AutoReviewAuditQQMode = "all"
+)
+
+func NormalizeAutoReviewAuditQQMode(value string) (AutoReviewAuditQQMode, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "off", "false", "no", "disabled", "none":
+		return AutoReviewAuditQQOff, true
+	case "uncertain", "unclear", "manual", "review", "human", "fail", "failed", "failure", "failures":
+		return AutoReviewAuditQQUncertain, true
+	case "all", "on", "true", "yes", "enabled", "always":
+		return AutoReviewAuditQQAll, true
+	default:
+		return AutoReviewAuditQQOff, false
+	}
+}
+
+func (m AutoReviewAuditQQMode) String() string {
+	normalized, ok := NormalizeAutoReviewAuditQQMode(string(m))
+	if !ok {
+		return string(AutoReviewAuditQQOff)
+	}
+	return string(normalized)
+}
+
+func AutoReviewAuditQQEnabled(mode AutoReviewAuditQQMode) bool {
+	normalized, ok := NormalizeAutoReviewAuditQQMode(string(mode))
+	return ok && normalized != AutoReviewAuditQQOff
+}
+
+func ShouldSendAutoReviewAuditQQ(mode AutoReviewAuditQQMode, uncertain bool) bool {
+	normalized, ok := NormalizeAutoReviewAuditQQMode(string(mode))
+	if !ok {
+		return false
+	}
+	switch normalized {
+	case AutoReviewAuditQQAll:
+		return true
+	case AutoReviewAuditQQUncertain:
+		return uncertain
+	default:
+		return false
+	}
+}
+
+func (m *AutoReviewAuditQQMode) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		*m = AutoReviewAuditQQOff
+		return nil
+	}
+	if value.Tag == "!!bool" {
+		if strings.EqualFold(value.Value, "true") {
+			*m = AutoReviewAuditQQAll
+		} else {
+			*m = AutoReviewAuditQQOff
+		}
+		return nil
+	}
+	normalized, ok := NormalizeAutoReviewAuditQQMode(value.Value)
+	if !ok {
+		return fmt.Errorf("invalid notification.auto_review_audit_qq %q (want off, uncertain, or all)", value.Value)
+	}
+	*m = normalized
+	return nil
 }
 
 type DebugConfig struct {
@@ -130,6 +201,9 @@ func Default() Config {
 			Args:           []string{"--oneshot"},
 			TimeoutSeconds: 120,
 			WorkLog:        "~/.local/state/tmux-kanban/hermes-worklog.jsonl",
+		},
+		Notification: NotificationConfig{
+			AutoReviewAuditQQ: AutoReviewAuditQQOff,
 		},
 	}
 }
@@ -204,6 +278,11 @@ func Load(path string) (Config, error) {
 	}
 	if cfg.Hermes.WorkLog == "" {
 		cfg.Hermes.WorkLog = Default().Hermes.WorkLog
+	}
+	if normalized, ok := NormalizeAutoReviewAuditQQMode(string(cfg.Notification.AutoReviewAuditQQ)); ok {
+		cfg.Notification.AutoReviewAuditQQ = normalized
+	} else {
+		cfg.Notification.AutoReviewAuditQQ = AutoReviewAuditQQOff
 	}
 
 	return cfg, nil

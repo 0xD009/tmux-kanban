@@ -11,7 +11,7 @@ import (
 
 func (m *model) executeSetCommand(args []string) tea.Cmd {
 	if len(args) < 2 {
-		m.status = "usage: set qq|terminal_review|hermes|hermes.auto_review|hermes.done_advice|hermes.auto_done|hermes.idle_advice|hermes.auto_idle|status <on|off|value>"
+		m.status = "usage: set qq|auto_review_audit_qq|terminal_review|hermes|hermes.auto_review|hermes.done_advice|hermes.auto_done|hermes.idle_advice|hermes.auto_idle|status <on|off|value>"
 		return nil
 	}
 
@@ -23,6 +23,8 @@ func (m *model) executeSetCommand(args []string) tea.Cmd {
 			m.cfg.Notification.QQEnabled = value
 			m.status = "QQ notification " + onOff(value)
 		})
+	case "auto_review_audit_qq", "audit_qq", "notification.auto_review_audit_qq":
+		m.executeAutoReviewAuditQQSettingCommand(valueArgs)
 	case "terminal_review", "review_terminal", "notification.terminal_review":
 		m.executeBoolSettingCommand("terminal_review", valueArgs, func(value bool) {
 			m.cfg.Notification.TerminalReview = value
@@ -113,6 +115,20 @@ func (m *model) executeSetCommand(args []string) tea.Cmd {
 		m.status = "unknown setting: " + args[0]
 	}
 	return nil
+}
+
+func (m *model) executeAutoReviewAuditQQSettingCommand(args []string) {
+	if len(args) != 1 {
+		m.status = "usage: auto_review_audit_qq off|uncertain|all"
+		return
+	}
+	value, ok := config.NormalizeAutoReviewAuditQQMode(args[0])
+	if !ok {
+		m.status = "usage: auto_review_audit_qq off|uncertain|all"
+		return
+	}
+	m.cfg.Notification.AutoReviewAuditQQ = value
+	m.status = "auto review audit QQ " + value.String()
 }
 
 func (m *model) executeBoolSettingCommand(name string, args []string, apply func(bool)) {

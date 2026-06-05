@@ -30,8 +30,9 @@ type ConfigSummary struct {
 	AgentMesh    MeshSummary   `json:"agent_mesh"`
 	Hermes       HermesSummary `json:"hermes"`
 	Notification struct {
-		QQEnabled      bool `json:"qq_enabled"`
-		TerminalReview bool `json:"terminal_review"`
+		QQEnabled         bool   `json:"qq_enabled"`
+		TerminalReview    bool   `json:"terminal_review"`
+		AutoReviewAuditQQ string `json:"auto_review_audit_qq"`
 	} `json:"notification"`
 	Debug struct {
 		SnapshotDir string `json:"snapshot_dir,omitempty"`
@@ -210,6 +211,7 @@ func NewConfigSummary(cfg config.Config) ConfigSummary {
 	summary.AgentMesh.Mail.Dir = cfg.AgentMesh.Mail.Dir
 	summary.Notification.QQEnabled = cfg.Notification.QQEnabled
 	summary.Notification.TerminalReview = cfg.Notification.TerminalReview
+	summary.Notification.AutoReviewAuditQQ = cfg.Notification.AutoReviewAuditQQ.String()
 	summary.Debug.SnapshotDir = cfg.Debug.SnapshotDir
 	return summary
 }

@@ -167,6 +167,7 @@ Hermes, QQ, and runtime settings:
 :settings
 :set qq on
 :set qq off
+:set auto_review_audit_qq uncertain
 :set terminal_review on
 :set hermes on
 :set hermes.auto_review on
@@ -182,7 +183,7 @@ Hermes, QQ, and runtime settings:
 :notify optional message for Hermes
 ```
 
-`:notify` uses the configured Hermes/QQ notification path and still requires `notification.qq_enabled: true`. Terminal bell/title NEED REVIEW alerts are off by default because the TUI already shows the review queue; enable them with `notification.terminal_review: true` or `:set terminal_review on`. Hermes auto review is intentionally conservative: automatic choices require explicit Hermes replies such as `CHOOSE <number>` or `SKIP`. When both Hermes auto review and QQ notifications are enabled, each Hermes auto-review decision is also forwarded to QQ as an audit copy for manual inspection.
+`:notify` uses the configured Hermes/QQ notification path and still requires `notification.qq_enabled: true`. Terminal bell/title NEED REVIEW alerts are off by default because the TUI already shows the review queue; enable them with `notification.terminal_review: true` or `:set terminal_review on`. Hermes auto review is intentionally conservative: automatic choices require explicit Hermes replies such as `CHOOSE <number>` or `SKIP`. Set `notification.auto_review_audit_qq` or `:set auto_review_audit_qq` to `off`, `uncertain`, or `all`: `uncertain` only forwards unactionable or failed auto-review outcomes to QQ, while `all` forwards every Hermes auto-review decision for manual audit.
 Hermes settings can be global or scoped: `all on|off` explicitly changes the global default, `host <host|all> on|off` affects one machine or acts as a scoped wildcard, `session [host/]session|all on|off` affects one session or all sessions, and `here on|off` targets the currently selected session. done/idle next-step handling is also split into advice and adoption: `hermes.done_advice` / `hermes.idle_advice` only ask Hermes for a next-step recommendation, while `hermes.auto_done` / `hermes.auto_idle` send text back to the agent pane only when Hermes explicitly replies with `SEND: <message>`.
 Hermes replies, auto-adopted actions, skips, next-step sends, and memory writes are appended to `hermes.work_log`. The default path is `~/.local/state/tmux-kanban/hermes-worklog.jsonl` for later manual review.
 

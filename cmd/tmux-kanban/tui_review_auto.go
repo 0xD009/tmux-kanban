@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"tmux-kanban/internal/agent"
+	"tmux-kanban/internal/config"
 )
 
 type hermesAutoReviewAction struct {
@@ -55,7 +56,7 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 	}
 	action, ok := parseHermesAutoReviewAction(advice)
 	if !ok {
-		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, "needs human review")
+		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, "needs human review", true)
 		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
 		entry.Advice = advice
 		entry.ParsedAction = "unactionable"
@@ -79,9 +80,10 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 		if action.reason != "" {
 			decision += ": " + action.reason
 		}
-		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, decision)
+		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, decision, false)
 		cmd := m.sendChoiceForReviewItem(item, hostLabel, lines, action.choice)
 		if cmd == nil {
+			auditCmd = m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, decision, true)
 			entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
 			entry.Advice = advice
 			entry.ParsedAction = "choose"
@@ -108,7 +110,7 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 		if action.reason != "" {
 			decision += ": " + action.reason
 		}
-		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, decision)
+		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, decision, false)
 		m.skipReviewItemByKey(item.SessionKey, "Hermes")
 		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
 		entry.Advice = advice
@@ -120,7 +122,7 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 		m.status = "Hermes auto skipped " + item.HostName + "/" + item.SessionName
 		return tea.Batch(m.syncReviewTerminalTitleCmd(), auditCmd)
 	default:
-		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, action.kind)
+		auditCmd := m.hermesAutoReviewAuditQQCmd(item, hostLabel, lines, advice, action.kind, true)
 		entry := reviewHermesWorkLogEntry(item, hostLabel, "auto", "auto_action")
 		entry.Advice = advice
 		entry.ParsedAction = action.kind
@@ -132,8 +134,8 @@ func (m *model) applyHermesAutoReview(item reviewItem, hostLabel string, lines [
 	}
 }
 
-func (m *model) hermesAutoReviewAuditQQCmd(item reviewItem, hostLabel string, lines []string, advice string, decision string) tea.Cmd {
-	if !m.cfg.Notification.QQEnabled {
+func (m *model) hermesAutoReviewAuditQQCmd(item reviewItem, hostLabel string, lines []string, advice string, decision string, uncertain bool) tea.Cmd {
+	if !config.ShouldSendAutoReviewAuditQQ(m.cfg.Notification.AutoReviewAuditQQ, uncertain) {
 		return nil
 	}
 	cfg := m.cfg
