@@ -29,8 +29,8 @@ func reviewTerminalTitleSequence(active bool) []byte {
 	return []byte("\x1b]1;" + title + "\x1b\\\x1b]2;" + title + "\x1b\\")
 }
 
-func needReviewBellCmd(enabled bool, hadOld bool, oldStatus sessionStatus, nextStatus sessionStatus, handledByHermes bool) tea.Cmd {
-	if !enabled || handledByHermes || !enteredNeedReview(hadOld, oldStatus, nextStatus) {
+func needReviewBellCmd(bellEnabled bool, hadOld bool, oldStatus sessionStatus, nextStatus sessionStatus, handledByHermes bool) tea.Cmd {
+	if !bellEnabled || handledByHermes || !enteredNeedReview(hadOld, oldStatus, nextStatus) {
 		return nil
 	}
 	return func() tea.Msg {

@@ -40,6 +40,9 @@ func TestLoadHermesConfigDefaults(t *testing.T) {
 	if cfg.Notification.QQEnabled {
 		t.Fatalf("notification qq_enabled = true, want false")
 	}
+	if !cfg.Notification.TerminalBell {
+		t.Fatalf("notification terminal_bell = false, want true (default on)")
+	}
 	if cfg.Notification.TerminalReview {
 		t.Fatalf("notification terminal_review = true, want false")
 	}

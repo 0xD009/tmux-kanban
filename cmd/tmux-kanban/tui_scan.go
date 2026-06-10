@@ -234,7 +234,7 @@ func (m *model) applyPreviewAgentStatus(key string, lines []string) tea.Cmd {
 			Message: "status changed",
 		})
 	}
-	return tea.Batch(needReviewBellCmd(m.cfg.Notification.TerminalReview, hadOldStatus, oldStatus, nextStatus, autoCmd != nil), autoCmd, nextStepCmd, m.syncReviewTerminalTitleCmd())
+	return tea.Batch(needReviewBellCmd(m.cfg.Notification.TerminalBell, hadOldStatus, oldStatus, nextStatus, autoCmd != nil), autoCmd, nextStepCmd, m.syncReviewTerminalTitleCmd())
 }
 
 func hermesQueryCmd(cfg config.Config, item reviewItem, host config.Host, auto bool) tea.Cmd {

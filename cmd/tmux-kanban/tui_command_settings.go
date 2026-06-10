@@ -11,7 +11,7 @@ import (
 
 func (m *model) executeSetCommand(args []string) tea.Cmd {
 	if len(args) < 2 {
-		m.status = "usage: set qq|auto_review_audit_qq|terminal_review|hermes|hermes.auto_review|hermes.done_advice|hermes.auto_done|hermes.idle_advice|hermes.auto_idle|status <on|off|value>"
+		m.status = "usage: set qq|auto_review_audit_qq|terminal_bell|terminal_review|hermes|hermes.auto_review|hermes.done_advice|hermes.auto_done|hermes.idle_advice|hermes.auto_idle|status <on|off|value>"
 		return nil
 	}
 
@@ -25,6 +25,11 @@ func (m *model) executeSetCommand(args []string) tea.Cmd {
 		})
 	case "auto_review_audit_qq", "audit_qq", "notification.auto_review_audit_qq":
 		m.executeAutoReviewAuditQQSettingCommand(valueArgs)
+	case "terminal_bell", "bell", "notification.terminal_bell":
+		m.executeBoolSettingCommand("terminal_bell", valueArgs, func(value bool) {
+			m.cfg.Notification.TerminalBell = value
+			m.status = "terminal bell notification " + onOff(value)
+		})
 	case "terminal_review", "review_terminal", "notification.terminal_review":
 		m.executeBoolSettingCommand("terminal_review", valueArgs, func(value bool) {
 			m.cfg.Notification.TerminalReview = value

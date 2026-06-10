@@ -91,6 +91,7 @@ type HermesScopeConfig struct {
 
 type NotificationConfig struct {
 	QQEnabled         bool                  `yaml:"qq_enabled"`
+	TerminalBell      bool                  `yaml:"terminal_bell"`
 	TerminalReview    bool                  `yaml:"terminal_review"`
 	AutoReviewAuditQQ AutoReviewAuditQQMode `yaml:"auto_review_audit_qq"`
 }
@@ -203,6 +204,7 @@ func Default() Config {
 			WorkLog:        "~/.local/state/tmux-kanban/hermes-worklog.jsonl",
 		},
 		Notification: NotificationConfig{
+			TerminalBell:      true,
 			AutoReviewAuditQQ: AutoReviewAuditQQOff,
 		},
 	}
