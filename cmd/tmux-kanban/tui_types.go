@@ -24,7 +24,6 @@ type model struct {
 	command        commandState
 	sessionClose   pendingSessionClose
 	snapshotInput  snapshotDescriptionState
-	viewMode       viewMode
 	hermes         map[string]hermesAdvice
 	activities     []agentActivity
 	status         string
@@ -34,8 +33,6 @@ type model struct {
 	previewScroll  int
 	activityScroll int
 
-	reviewCursor      int
-	reviewCursorKey   string
 	reviewSkipped     map[string]bool
 	reviewTitleActive bool
 
@@ -98,22 +95,14 @@ const (
 	rowPane
 )
 
-type viewMode string
-
-const (
-	viewTree   viewMode = "tree"
-	viewReview viewMode = "review"
-)
-
 type focusedPanel string
 
 const (
-	panelNone        focusedPanel = ""
-	panelExplorer    focusedPanel = "explorer"
-	panelPreview     focusedPanel = "preview"
-	panelKanban      focusedPanel = "kanban"
-	panelReviewQueue focusedPanel = "review_queue"
-	panelActivity    focusedPanel = "activity"
+	panelNone     focusedPanel = ""
+	panelExplorer focusedPanel = "explorer"
+	panelPreview  focusedPanel = "preview"
+	panelKanban   focusedPanel = "kanban"
+	panelActivity focusedPanel = "activity"
 )
 
 type reviewItem struct {

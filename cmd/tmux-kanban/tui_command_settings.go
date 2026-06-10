@@ -162,62 +162,9 @@ func (m *model) executeStatusCommand(args []string) tea.Cmd {
 	return m.setActiveSessionStatus(status)
 }
 
-func (m *model) setViewMode(mode viewMode) {
-	switch mode {
-	case viewReview:
-		if m.compose.active {
-			m.compose = composeState{}
-		}
-		m.viewMode = viewReview
-		m.focusedPanel = panelReviewQueue
-		m.clampReviewCursor()
-		m.status = "review queue"
-	case viewTree:
-		if m.compose.active {
-			m.compose = composeState{}
-		}
-		m.viewMode = viewTree
-		m.focusedPanel = panelExplorer
-		m.status = "tree view"
-	default:
-		return
-	}
-	m.preview = previewState{}
-	m.resetPreviewScroll()
-}
-
 func (m *model) setActiveSessionStatus(status sessionStatus) tea.Cmd {
 	if m.statuses == nil {
 		m.statuses = map[string]sessionStatus{}
-	}
-
-	if m.viewMode == viewReview {
-		item, ok := m.currentReviewItem()
-		if !ok {
-			m.status = "review queue is empty"
-			return nil
-		}
-		oldStatus, hadOldStatus := m.statuses[item.SessionKey]
-		m.statuses[item.SessionKey] = status
-		delete(m.statusStreaks, item.SessionKey)
-		m.clearHermesAdvice(item.SessionKey)
-		if status != sessionNeedReview {
-			delete(m.reviewSkipped, item.SessionKey)
-			delete(m.reviewTargets, item.SessionKey)
-			m.advanceReviewCursorAfter(item.SessionKey)
-		} else {
-			m.clampReviewCursor()
-		}
-		m.preview = previewState{}
-		m.status = fmt.Sprintf("%s/%s -> %s", item.HostName, item.SessionName, statusLabel(status))
-		m.addAgentActivity(agentActivity{
-			Source:  agentActivitySession,
-			Agent:   "session",
-			Target:  item.HostName + "/" + item.SessionName,
-			State:   statusLabel(status),
-			Message: "manual status set",
-		})
-		return tea.Batch(m.autoHermesNextStepCmd(hadOldStatus, oldStatus, status, item.SessionKey), m.syncReviewTerminalTitleCmd())
 	}
 
 	ref, ok := m.selectedSessionRef()

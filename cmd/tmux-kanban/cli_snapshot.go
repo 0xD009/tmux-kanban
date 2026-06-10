@@ -93,8 +93,7 @@ func buildCLIDebugSnapshot(cfg config.Config, height int, includeLines bool, des
 		Description: strings.TrimSpace(description),
 		Config:      debugsnap.NewConfigSummary(cfg),
 		Runtime: debugsnap.RuntimeState{
-			ViewMode:        "cli",
-			Status:          "snapshot",
+			Status: "snapshot",
 			SessionStatuses: statuses,
 			ReviewTargets:   targets,
 		},

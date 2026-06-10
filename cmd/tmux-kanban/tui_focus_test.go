@@ -142,55 +142,29 @@ func TestPageKeysScrollPreviewWithoutMovingCursor(t *testing.T) {
 	}
 }
 
-func TestMouseWheelInReviewPreviewDoesNotMoveReviewCursor(t *testing.T) {
-	first := tmuxscan.Session{
-		ID:   "$1",
-		Name: "first",
-		Windows: []tmuxscan.Window{{
-			ID:    "@1",
-			Index: "0",
-			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex}},
-		}},
-	}
-	second := tmuxscan.Session{
-		ID:   "$2",
-		Name: "second",
-		Windows: []tmuxscan.Window{{
-			ID:    "@2",
-			Index: "0",
-			Panes: []tmuxscan.Pane{{ID: "%2", Index: "0", Agent: tmuxscan.AgentClaude}},
-		}},
-	}
-	host := config.Host{Name: "local", Local: true}
+func TestMouseWheelInPreviewDoesNotMoveExplorerCursor(t *testing.T) {
 	m := model{
 		width:  120,
 		height: 40,
 		hosts: []hostState{{
-			host:     host,
-			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{first, second}},
-			loaded:   true,
+			host: config.Host{Name: "local", SSH: "local"},
+			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{
+				{ID: "$1", Name: "one"},
+				{ID: "$2", Name: "two"},
+			}},
+			loaded: true,
 		}},
-		statuses: map[string]sessionStatus{
-			sessionStatusKey(host, first):  sessionNeedReview,
-			sessionStatusKey(host, second): sessionNeedReview,
-		},
-		viewMode: viewReview,
+		expanded: map[string]bool{"host:0": true},
 	}
 	preview := testPanelBounds(t, m, panelPreview)
-	queue := testPanelBounds(t, m, panelReviewQueue)
 	now := time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC)
 
 	m.handleMouse(tea.MouseMsg{Type: tea.MouseWheelUp, X: preview.x, Y: preview.y}, now)
-	if m.reviewCursor != 0 {
-		t.Fatalf("reviewCursor after preview wheel = %d, want unchanged", m.reviewCursor)
+	if m.cursor != 0 {
+		t.Fatalf("cursor after preview wheel = %d, want unchanged", m.cursor)
 	}
 	if m.previewScroll != 5 {
 		t.Fatalf("previewScroll = %d, want 5", m.previewScroll)
-	}
-
-	m.handleMouse(tea.MouseMsg{Type: tea.MouseWheelDown, X: queue.x, Y: queue.y}, now.Add(wheelThrottleInterval+time.Millisecond))
-	if m.reviewCursor != 1 {
-		t.Fatalf("reviewCursor after queue wheel = %d, want 1", m.reviewCursor)
 	}
 }
 

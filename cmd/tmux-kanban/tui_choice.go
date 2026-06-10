@@ -35,19 +35,6 @@ func (m *model) markChoiceSent(target selectedAgentTarget) {
 	if m.statuses == nil {
 		m.statuses = map[string]sessionStatus{}
 	}
-
-	if m.viewMode == viewReview {
-		if item, ok := m.currentReviewItem(); ok {
-			m.statuses[item.SessionKey] = sessionWorking
-			delete(m.reviewSkipped, item.SessionKey)
-			delete(m.reviewTargets, item.SessionKey)
-			m.clearHermesAdvice(item.SessionKey)
-			m.preview = previewState{}
-			m.advanceReviewCursorAfter(item.SessionKey)
-		}
-		return
-	}
-
 	ref, ok := m.sessionRefForAgentTarget(target)
 	if !ok || m.sessionStatusForKey(ref.Key) != sessionNeedReview {
 		return

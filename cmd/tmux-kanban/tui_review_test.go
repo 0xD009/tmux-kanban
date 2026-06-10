@@ -8,162 +8,6 @@ import (
 	"tmux-kanban/internal/tmuxscan"
 )
 
-func TestSkipReviewItemTemporarilyHidesIt(t *testing.T) {
-	session := tmuxscan.Session{
-		ID:   "$1",
-		Name: "needs-review",
-		Windows: []tmuxscan.Window{{
-			ID:    "@1",
-			Index: "0",
-			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex}},
-		}},
-	}
-	host := config.Host{Name: "local", Local: true}
-	m := model{
-		hosts: []hostState{{
-			host:     host,
-			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{session}},
-			loaded:   true,
-		}},
-		statuses: map[string]sessionStatus{sessionStatusKey(host, session): sessionNeedReview},
-		viewMode: viewReview,
-	}
-
-	m.skipReviewItem()
-	if len(m.reviewQueue()) != 0 {
-		t.Fatalf("queue length after skip = %d, want 0", len(m.reviewQueue()))
-	}
-	if m.skippedReviewCount() != 1 {
-		t.Fatalf("skipped count = %d, want 1", m.skippedReviewCount())
-	}
-
-	m.unskipReviewItems()
-	if len(m.reviewQueue()) != 1 {
-		t.Fatalf("queue length after unskip = %d, want 1", len(m.reviewQueue()))
-	}
-}
-
-func TestReviewCursorTracksStableSessionKey(t *testing.T) {
-	first := tmuxscan.Session{
-		ID:   "$1",
-		Name: "first",
-		Windows: []tmuxscan.Window{{
-			ID:    "@1",
-			Index: "0",
-			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex}},
-		}},
-	}
-	second := tmuxscan.Session{
-		ID:   "$2",
-		Name: "second",
-		Windows: []tmuxscan.Window{{
-			ID:    "@2",
-			Index: "0",
-			Panes: []tmuxscan.Pane{{ID: "%2", Index: "0", Agent: tmuxscan.AgentClaude}},
-		}},
-	}
-	third := tmuxscan.Session{
-		ID:   "$3",
-		Name: "third",
-		Windows: []tmuxscan.Window{{
-			ID:    "@3",
-			Index: "0",
-			Panes: []tmuxscan.Pane{{ID: "%3", Index: "0", Agent: tmuxscan.AgentCodex}},
-		}},
-	}
-	host := config.Host{Name: "local", Local: true}
-	firstKey := sessionStatusKey(host, first)
-	secondKey := sessionStatusKey(host, second)
-	thirdKey := sessionStatusKey(host, third)
-	m := model{
-		hosts: []hostState{{
-			host:     host,
-			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{first, second, third}},
-			loaded:   true,
-		}},
-		statuses: map[string]sessionStatus{
-			firstKey:  sessionNeedReview,
-			secondKey: sessionNeedReview,
-			thirdKey:  sessionNeedReview,
-		},
-		viewMode: viewReview,
-	}
-
-	m.moveReviewCursor(1)
-	if item, ok := m.currentReviewItem(); !ok || item.SessionKey != secondKey {
-		t.Fatalf("current after move = %#v, %v; want second", item, ok)
-	}
-
-	m.statuses[firstKey] = sessionIdle
-	m.clampReviewCursor()
-	if item, ok := m.currentReviewItem(); !ok || item.SessionKey != secondKey {
-		t.Fatalf("current after queue shrink = %#v, %v; want second", item, ok)
-	}
-
-	m.skipReviewItem()
-	if item, ok := m.currentReviewItem(); !ok || item.SessionKey != thirdKey {
-		t.Fatalf("current after skip = %#v, %v; want third", item, ok)
-	}
-}
-
-func TestSendChoiceInReviewModeAdvancesQueue(t *testing.T) {
-	first := tmuxscan.Session{
-		ID:   "$1",
-		Name: "first",
-		Windows: []tmuxscan.Window{{
-			ID:    "@1",
-			Index: "0",
-			Panes: []tmuxscan.Pane{{ID: "%1", Index: "0", Agent: tmuxscan.AgentCodex}},
-		}},
-	}
-	second := tmuxscan.Session{
-		ID:   "$2",
-		Name: "second",
-		Windows: []tmuxscan.Window{{
-			ID:    "@2",
-			Index: "0",
-			Panes: []tmuxscan.Pane{{ID: "%2", Index: "0", Agent: tmuxscan.AgentClaude}},
-		}},
-	}
-	host := config.Host{Name: "local", Local: true}
-	firstKey := sessionStatusKey(host, first)
-	secondKey := sessionStatusKey(host, second)
-	m := model{
-		hosts: []hostState{{
-			host:     host,
-			snapshot: tmuxscan.Snapshot{Sessions: []tmuxscan.Session{first, second}},
-			loaded:   true,
-		}},
-		statuses: map[string]sessionStatus{
-			firstKey:  sessionNeedReview,
-			secondKey: sessionNeedReview,
-		},
-		viewMode: viewReview,
-		preview: previewState{
-			lines: []string{
-				"Do you want to allow this command?",
-				"❯ 1. Allow",
-				"  2. Deny",
-			},
-		},
-	}
-
-	cmd := m.sendChoice("1")
-	if cmd == nil {
-		t.Fatalf("sendChoice() cmd = nil, want command")
-	}
-	if got := m.statuses[firstKey]; got != sessionWorking {
-		t.Fatalf("first status = %q, want %q", got, sessionWorking)
-	}
-	item, ok := m.currentReviewItem()
-	if !ok {
-		t.Fatalf("currentReviewItem() ok = false, want second item")
-	}
-	if item.SessionKey != secondKey {
-		t.Fatalf("current session key = %q, want %q", item.SessionKey, secondKey)
-	}
-}
-
 func TestNeedReviewSessionRowUsesReviewTargetForPreview(t *testing.T) {
 	window := tmuxscan.Window{
 		ID:     "@1",
@@ -188,7 +32,6 @@ func TestNeedReviewSessionRowUsesReviewTargetForPreview(t *testing.T) {
 		statuses:      map[string]sessionStatus{key: sessionNeedReview},
 		reviewTargets: map[string]selectedAgentTarget{key: target},
 		cursor:        0,
-		viewMode:      viewTree,
 	}
 
 	row, ok := m.activePreviewRow()
@@ -208,7 +51,7 @@ func TestNeedReviewSessionRowUsesReviewTargetForPreview(t *testing.T) {
 	}
 }
 
-func TestSendChoiceInTreeModeMarksNeedReviewSessionWorking(t *testing.T) {
+func TestSendChoiceMarksNeedReviewSessionWorking(t *testing.T) {
 	window := tmuxscan.Window{
 		ID:    "@1",
 		Index: "0",
@@ -228,7 +71,6 @@ func TestSendChoiceInTreeModeMarksNeedReviewSessionWorking(t *testing.T) {
 		statuses:      map[string]sessionStatus{key: sessionNeedReview},
 		reviewTargets: map[string]selectedAgentTarget{key: target},
 		cursor:        0,
-		viewMode:      viewTree,
 		preview: previewState{lines: []string{
 			"Do you want to allow this command?",
 			"❯ 1. Allow",

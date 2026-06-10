@@ -16,7 +16,6 @@ func TestWriteSnapshotSerializesDiagnosticPackage(t *testing.T) {
 			Hosts: []config.Host{{Name: "local", Local: true}},
 		}),
 		Runtime: RuntimeState{
-			ViewMode: "review",
 			SessionStatuses: map[string]string{
 				"local:$1": "need review",
 			},

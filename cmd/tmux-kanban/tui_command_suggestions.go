@@ -41,7 +41,6 @@ func commandCandidateCatalog() []commandCandidate {
 		{Text: "refresh", Description: "scan tmux sessions"},
 		{Text: "settings", Description: "show runtime settings"},
 		{Text: "view tree", Description: "open tree view"},
-		{Text: "view review", Description: "open review queue"},
 		{Text: "session open ", Display: "session open name", Description: "create tmux session"},
 		{Text: "session close here", Description: "prepare selected session close"},
 		{Text: "session close ", Display: "session close host/session", Description: "prepare session close"},

@@ -20,11 +20,7 @@ func (m model) selectedAttachTarget() (config.Host, string, bool) {
 
 	host := m.hosts[selected.hostIndex].host
 	target := selected.attachTarget
-	if m.viewMode == viewReview {
-		if item, ok := m.currentReviewItem(); ok && item.SessionName != "" {
-			target = item.SessionName
-		}
-	} else if ref, ok := m.selectedSessionRef(); ok {
+	if ref, ok := m.selectedSessionRef(); ok {
 		target = ref.Session.Name
 	}
 	return host, target, true

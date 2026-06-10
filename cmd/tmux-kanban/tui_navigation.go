@@ -50,21 +50,15 @@ func (m *model) moveFocusedPanel(panel focusedPanel, direction int) {
 		m.scrollPreview(direction)
 	case panelActivity:
 		m.scrollActivity(direction)
-	case panelReviewQueue:
-		m.moveReviewCursor(direction)
 	case panelExplorer, panelKanban:
 		m.moveCursor(direction)
 	default:
-		m.movePrimaryCursor(direction)
+		m.moveCursor(direction)
 	}
 }
 
 func (m *model) movePrimaryCursor(direction int) {
-	if m.viewMode == viewReview {
-		m.moveReviewCursor(direction)
-	} else {
-		m.moveCursor(direction)
-	}
+	m.moveCursor(direction)
 }
 
 func wheelDirection(msg tea.MouseMsg) int {

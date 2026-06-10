@@ -6,8 +6,6 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-
-	"tmux-kanban/internal/tmuxscan"
 )
 
 func (m model) headerHeight() int {
@@ -45,19 +43,14 @@ func (m model) metrics() tuiMetrics {
 
 func (m model) renderHeader(width int) string {
 	metrics := m.metrics()
-	mode := strings.ToUpper(string(m.viewMode))
-	if mode == "" {
-		mode = "TREE"
-	}
 	status := strings.TrimSpace(m.status)
 	if status == "" {
 		status = "ready"
 	}
 
 	title := titleStyle.Render("tmux-kanban")
-	modeChip := chipStyle(lipgloss.Color("236"), lipgloss.Color("153")).Render(" " + mode + " ")
 	summary := headerMetaStyle.Render(fmt.Sprintf("hosts %d | sessions %d | review %d | skipped %d | loading %d | errors %d", metrics.hosts, metrics.sessions, metrics.review, metrics.skipped, metrics.loading, metrics.errors))
-	line1 := ansi.Truncate(title+" "+modeChip+" "+summary, width, "...")
+	line1 := ansi.Truncate(title+" "+summary, width, "...")
 	line2 := headerMetaStyle.Render(ansi.Truncate(m.helpLine(), width, "..."))
 	line3 := headerStatusStyle.Render(ansi.Truncate("status: "+status, width, "..."))
 	return line1 + "\n" + line2 + "\n" + line3 + "\n\n"
@@ -73,10 +66,8 @@ func (m model) helpLine() string {
 		return "message mode | enter send | left/right move | esc cancel | ctrl+u clear"
 	case m.control.active:
 		return "relay mode | j/k or arrows move remote choice | enter choose | tab next | esc stop"
-	case m.viewMode == viewReview:
-		return "review view | : command | tab/v tree | j/k move | pgup/pgdn preview | 1-9 choose | h ask Hermes | s skip | u unskip | d snapshot"
 	default:
-		return "tree view | : command | tab/v review | q quit | r refresh | j/k move | pgup/pgdn preview | enter toggle | a attach | s status | d snapshot"
+		return ": command | q quit | r refresh | j/k move | pgup/pgdn preview | enter toggle | a attach | s status | d snapshot"
 	}
 }
 
@@ -87,34 +78,6 @@ func (m model) renderWorkspace(width int, height int, topRow int, leftCol int) s
 		lipgloss.Left,
 		m.renderHosts(width, hostsHeight),
 		m.renderPreviewPanel(width, previewHeight, topRow+hostsHeight, leftCol),
-	)
-}
-
-func (m model) renderReviewView(width int, height int, topRow int, leftCol int) string {
-	if width >= 140 {
-		queueWidth := threeColumnSideWidth(width)
-		activityWidth := threeColumnActivityWidth(width, queueWidth)
-		queue := m.renderReviewQueue(queueWidth, height)
-		previewLeftCol := leftCol + lipgloss.Width(queue) + 2
-		preview := m.renderPreviewPanel(maxInt(60, width-queueWidth-activityWidth-4), height, topRow, previewLeftCol)
-		activity := m.renderAgentActivity(activityWidth, height)
-		return lipgloss.JoinHorizontal(lipgloss.Top, queue, "  ", preview, "  ", activity)
-	}
-
-	if width >= 104 {
-		queueWidth := twoColumnSideWidth(width)
-		queue := m.renderReviewQueue(queueWidth, height)
-		previewLeftCol := leftCol + lipgloss.Width(queue) + 2
-		preview := m.renderPreviewPanel(maxInt(60, width-queueWidth-2), height, topRow, previewLeftCol)
-		return lipgloss.JoinHorizontal(lipgloss.Top, queue, "  ", preview)
-	}
-
-	queueHeight := minInt(12, maxInt(8, height/3))
-	previewHeight := maxInt(8, height-queueHeight-2)
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		m.renderReviewQueue(width, queueHeight),
-		m.renderPreviewPanel(width, previewHeight, topRow+queueHeight, leftCol),
 	)
 }
 
@@ -135,46 +98,6 @@ func threeColumnActivityWidth(totalWidth int, leftWidth int) int {
 
 func twoColumnSideWidth(totalWidth int) int {
 	return minInt(42, maxInt(38, totalWidth/3))
-}
-
-func (m model) renderReviewQueue(width int, height int) string {
-	innerHeight := panelInnerHeight(height)
-	lineWidth := maxInt(18, width-8)
-	items := m.reviewQueue()
-	skipped := m.skippedReviewCount()
-
-	lines := []string{
-		panelTitleStyle.Render("Review Queue"),
-		headerMetaStyle.Render(fmt.Sprintf("%d queued | %d skipped", len(items), skipped)),
-		ruleStyle.Render(strings.Repeat("-", lineWidth)),
-		"",
-	}
-
-	if len(items) == 0 {
-		message := "queue empty"
-		if skipped > 0 {
-			message = "all review items skipped"
-		}
-		lines = append(lines, mutedStyle.Render(message))
-		lines = append(lines, mutedStyle.Render("u  restore skipped items"))
-		return renderFixedPanel(width, innerHeight, lines)
-	}
-
-	cursor := m.reviewCursorIndex(items)
-	for i, item := range items {
-		prefix := fmt.Sprintf("%02d ", i+1)
-		if i == cursor {
-			prefix = "> "
-		}
-		agentBadge := ""
-		if item.Agent != tmuxscan.AgentNone {
-			agentBadge = " " + agentBadgeStyle(item.Agent)
-		}
-		label := fmt.Sprintf("%s%s/%s%s", prefix, item.HostName, item.SessionName, agentBadge)
-		lines = append(lines, renderListLine(label, lineWidth, i == cursor, false))
-	}
-
-	return renderFixedPanel(width, innerHeight, lines)
 }
 
 func (m model) renderAgentActivity(width int, height int) string {

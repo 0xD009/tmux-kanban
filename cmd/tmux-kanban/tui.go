@@ -28,7 +28,6 @@ func initialModel(cfg config.Config) model {
 		statusStreaks: map[string]statusStreak{},
 		reviewTargets: map[string]selectedAgentTarget{},
 		cache:         map[string]previewCacheEntry{},
-		viewMode:      viewTree,
 		hermes:        map[string]hermesAdvice{},
 		status:        "scanning remote tmux sessions...",
 		width:         100,
@@ -74,12 +73,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.ShowCursor
 		case ui.KeyRefresh:
 			return m.startScan()
-		case ui.KeyToggleView, ui.KeyToggleView2:
-			m.toggleViewMode()
 		case "enter", " ":
-			if m.viewMode == viewTree {
-				m.toggleSelected()
-			}
+			m.toggleSelected()
 		case "up", "k":
 			m.movePrimaryCursor(-1)
 		case "down", "j":
@@ -91,21 +86,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ui.KeyAttach:
 			return m, m.attachSelected()
 		case ui.KeyStatus:
-			if m.viewMode == viewReview {
-				m.skipReviewItem()
-				return m, m.syncReviewTerminalTitleCmd()
-			} else {
-				return m, m.cycleSelectedSessionStatus()
-			}
-		case ui.KeyUnskip:
-			if m.viewMode == viewReview {
-				m.unskipReviewItems()
-				return m, m.syncReviewTerminalTitleCmd()
-			}
-		case ui.KeyHermes:
-			if m.viewMode == viewReview {
-				return m, m.queryHermesForReviewItem()
-			}
+			return m, m.cycleSelectedSessionStatus()
 		case ui.KeyRelay:
 			m.beginAgentControl()
 		case ui.KeyMessage:
@@ -185,7 +166,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case agentStatusResult:
 		if msg.ok {
 			oldStatus, hadOldStatus := m.statuses[msg.key]
-			oldReviewKey := m.reviewCursorKey
 			m.applyAgentStatusResult(msg)
 			nextStatus := m.sessionStatusForKey(msg.key)
 			if m.shouldLogPolledStatusChange(hadOldStatus, oldStatus, nextStatus) {
@@ -196,12 +176,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					State:   statusLabel(nextStatus),
 					Message: "status changed",
 				})
-			}
-			if m.viewMode == viewReview {
-				m.clampReviewCursor()
-				if oldReviewKey != m.reviewCursorKey {
-					m.preview = previewState{}
-				}
 			}
 			autoCmd := m.autoHermesReviewCmd(hadOldStatus, oldStatus, nextStatus, msg.key)
 			nextStepCmd := m.autoHermesNextStepCmd(hadOldStatus, oldStatus, nextStatus, msg.key)
@@ -445,13 +419,6 @@ func (m model) View() string {
 	contentWidth := maxInt(60, m.width-4)
 	contentTopRow := m.headerHeight()
 	contentHeight := maxInt(18, m.height-contentTopRow)
-	if m.viewMode == viewReview {
-		out.WriteString(m.renderReviewView(contentWidth, contentHeight, contentTopRow, 1))
-		out.WriteString("\n")
-		view := out.String()
-		finishTUIViewRender(view)
-		return view
-	}
 
 	if contentWidth >= 140 {
 		kanbanWidth := threeColumnSideWidth(contentWidth)

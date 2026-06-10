@@ -127,23 +127,6 @@ func TestExecuteCommandConfiguresAgentMesh(t *testing.T) {
 	}
 }
 
-func TestExecuteCommandSetsViewMode(t *testing.T) {
-	m := initialModel(config.Config{})
-
-	next, cmd := m.executeCommand("view review")
-	if cmd != nil {
-		t.Fatalf("view command returned cmd, want nil")
-	}
-	if next.viewMode != viewReview {
-		t.Fatalf("view mode = %q, want review", next.viewMode)
-	}
-
-	next, _ = next.executeCommand("tree")
-	if next.viewMode != viewTree {
-		t.Fatalf("view mode = %q, want tree", next.viewMode)
-	}
-}
-
 func TestExecuteCommandPreparesSelectedSessionClose(t *testing.T) {
 	host := config.Host{Name: "local", Local: true}
 	session := tmuxscan.Session{ID: "$1", Name: "agents"}
@@ -301,15 +284,15 @@ func TestUpdateCommandEnterRunsSelectedCandidatePrefix(t *testing.T) {
 	m := initialModel(config.Config{})
 	m.beginCommand()
 
-	nextModel, _ := m.updateCommand(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("view r")})
+	nextModel, _ := m.updateCommand(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("refresh")})
 	next := nextModel.(model)
 	nextModel, cmd := next.updateCommand(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd == nil {
-		t.Fatalf("enter command returned nil cmd, want cursor hide command")
+		t.Fatalf("enter command returned nil cmd, want scan command")
 	}
 	next = nextModel.(model)
-	if next.viewMode != viewReview {
-		t.Fatalf("view mode = %q, want review", next.viewMode)
+	if next.command.active {
+		t.Fatalf("command active = true, want closed after execute")
 	}
 }
 
@@ -355,20 +338,20 @@ func TestUpdateCommandEnterExecutesMergedToggleValue(t *testing.T) {
 }
 
 func TestRenderCommandSuggestionLinesShowsSelectableOptions(t *testing.T) {
-	m := model{command: commandState{active: true, text: "view", selected: 1}}
-	lines := m.renderCommandSuggestionLines(36)
+	m := model{command: commandState{active: true, text: "status ", selected: 1}}
+	lines := m.renderCommandSuggestionLines(40)
 	if len(lines) == 0 {
 		t.Fatalf("suggestion lines empty, want candidates")
 	}
-	if !strings.Contains(lines[0], ":view tree") {
-		t.Fatalf("first suggestion = %q, want view tree", lines[0])
+	if !strings.Contains(lines[0], ":status idle") {
+		t.Fatalf("first suggestion = %q, want status idle", lines[0])
 	}
-	if !strings.Contains(lines[1], "> :view review") {
-		t.Fatalf("selected suggestion = %q, want view review marker", lines[1])
+	if len(lines) < 2 || !strings.Contains(lines[1], "> :status working") {
+		t.Fatalf("selected suggestion = %q, want status working selected", lines)
 	}
 	for _, line := range lines {
-		if width := lipgloss.Width(line); width > 36 {
-			t.Fatalf("suggestion width = %d, want <= 36: %q", width, line)
+		if width := lipgloss.Width(line); width > 40 {
+			t.Fatalf("suggestion width = %d, want <= 40: %q", width, line)
 		}
 	}
 }

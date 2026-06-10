@@ -39,8 +39,7 @@ func TestDebugSnapshotIncludesRuntimeAndReviewQueue(t *testing.T) {
 			State:   "replied",
 			Message: "review advice ready",
 		}},
-		viewMode: viewReview,
-		preview:  previewState{target: "%1", lines: []string{"Do you want to allow this command?"}},
+		preview: previewState{target: "%1", lines: []string{"Do you want to allow this command?"}},
 	}
 
 	snapshot := m.debugSnapshot("FARI marked done while working")

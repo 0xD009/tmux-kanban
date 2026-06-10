@@ -176,7 +176,6 @@ func (m *model) markReviewChoiceSent(item reviewItem, hostLabel string) {
 	delete(m.reviewTargets, item.SessionKey)
 	m.clearHermesAdvice(item.SessionKey)
 	m.preview = previewState{}
-	m.advanceReviewCursorAfter(item.SessionKey)
 	m.addAgentActivity(agentActivity{
 		Source:  agentActivityReview,
 		Agent:   "Hermes",
@@ -195,7 +194,6 @@ func (m *model) skipReviewItemByKey(key string, agentName string) {
 		m.reviewSkipped = map[string]bool{}
 	}
 	m.reviewSkipped[key] = true
-	m.advanceReviewCursorAfter(key)
 	m.preview = previewState{}
 	m.addAgentActivity(agentActivity{
 		Source:  agentActivityReview,

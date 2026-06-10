@@ -473,7 +473,6 @@ func TestCaptureResultUpdatesPreviewedAgentStatus(t *testing.T) {
 		reviewTargets: map[string]selectedAgentTarget{},
 		cache:         map[string]previewCacheEntry{},
 		cursor:        0,
-		viewMode:      viewTree,
 	}
 	selected, ok := m.selectedRow()
 	if !ok {

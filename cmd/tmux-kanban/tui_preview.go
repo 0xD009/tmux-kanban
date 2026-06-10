@@ -294,30 +294,13 @@ func (m model) renderCommandSuggestionLines(width int) []string {
 }
 
 func (m model) renderHermesAdviceLines(width int) []string {
-	key := ""
-	prompt := "Hermes | h ask for a recommendation"
-	switch m.viewMode {
-	case viewReview:
-		item, ok := m.currentReviewItem()
-		if !ok {
-			return nil
-		}
-		key = item.SessionKey
-	case viewTree:
-		ref, ok := m.selectedSessionRef()
-		if !ok {
-			return nil
-		}
-		key = ref.Key
-		prompt = "Hermes | waiting for auto next-step advice"
-	default:
+	ref, ok := m.selectedSessionRef()
+	if !ok {
 		return nil
 	}
+	key := ref.Key
 	advice, ok := m.hermes[key]
 	if !ok {
-		if m.viewMode == viewReview {
-			return []string{previewBorderStyle.Render(prompt)}
-		}
 		return nil
 	}
 	if advice.loading {

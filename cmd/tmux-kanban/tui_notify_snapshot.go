@@ -108,13 +108,10 @@ func (m model) debugSnapshot(description string) debugsnap.Snapshot {
 		Description: strings.TrimSpace(description),
 		Config:      debugsnap.NewConfigSummary(m.cfg),
 		Runtime: debugsnap.RuntimeState{
-			ViewMode:        string(m.viewMode),
 			Status:          m.status,
 			SessionStatuses: statuses,
 			ReviewTargets:   targets,
 			SkippedReview:   skipped,
-			ReviewCursor:    m.reviewCursor,
-			ReviewCursorKey: m.reviewCursorKey,
 		},
 		Hosts:       hosts,
 		ReviewQueue: reviewItems,

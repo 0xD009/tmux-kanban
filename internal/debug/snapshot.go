@@ -99,13 +99,10 @@ type HermesScopeSummary struct {
 }
 
 type RuntimeState struct {
-	ViewMode        string            `json:"view_mode"`
 	Status          string            `json:"status"`
 	SessionStatuses map[string]string `json:"session_statuses,omitempty"`
 	ReviewTargets   map[string]string `json:"review_targets,omitempty"`
 	SkippedReview   []string          `json:"skipped_review,omitempty"`
-	ReviewCursor    int               `json:"review_cursor"`
-	ReviewCursorKey string            `json:"review_cursor_key,omitempty"`
 }
 
 type HostSnapshot struct {

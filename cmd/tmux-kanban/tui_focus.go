@@ -25,9 +25,6 @@ func (m model) panelBounds() []panelBounds {
 	contentWidth := maxInt(60, m.width-4)
 	contentTop := m.headerHeight()
 	contentHeight := maxInt(18, m.height-contentTop)
-	if m.viewMode == viewReview {
-		return reviewPanelBounds(contentWidth, contentTop, contentHeight)
-	}
 	return treePanelBounds(contentWidth, contentTop, contentHeight)
 }
 
@@ -75,35 +72,6 @@ func workspacePanelBounds(left int, top int, width int, height int) []panelBound
 	}
 }
 
-func reviewPanelBounds(width int, top int, height int) []panelBounds {
-	if width >= 140 {
-		queueWidth := threeColumnSideWidth(width)
-		activityWidth := threeColumnActivityWidth(width, queueWidth)
-		previewWidth := maxInt(60, width-queueWidth-activityWidth-4)
-		return []panelBounds{
-			{panel: panelReviewQueue, x: 0, y: top, w: queueWidth, h: height},
-			{panel: panelPreview, x: queueWidth + 2, y: top, w: previewWidth, h: height},
-			{panel: panelActivity, x: queueWidth + 2 + previewWidth + 2, y: top, w: activityWidth, h: height},
-		}
-	}
-
-	if width >= 104 {
-		queueWidth := twoColumnSideWidth(width)
-		previewWidth := maxInt(60, width-queueWidth-2)
-		return []panelBounds{
-			{panel: panelReviewQueue, x: 0, y: top, w: queueWidth, h: height},
-			{panel: panelPreview, x: queueWidth + 2, y: top, w: previewWidth, h: height},
-		}
-	}
-
-	queueHeight := minInt(12, maxInt(8, height/3))
-	previewHeight := maxInt(8, height-queueHeight-2)
-	return []panelBounds{
-		{panel: panelReviewQueue, x: 0, y: top, w: width, h: queueHeight},
-		{panel: panelPreview, x: 0, y: top + queueHeight, w: width, h: previewHeight},
-	}
-}
-
 func focusPanelLabel(panel focusedPanel) string {
 	switch panel {
 	case panelExplorer:
@@ -112,8 +80,6 @@ func focusPanelLabel(panel focusedPanel) string {
 		return "Terminal Preview"
 	case panelKanban:
 		return "Session Board"
-	case panelReviewQueue:
-		return "Review Queue"
 	case panelActivity:
 		return "Agent Activity"
 	default:

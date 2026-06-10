@@ -140,7 +140,6 @@ func TestSelectedMemoryUpdateTargetBuildsRequestedScope(t *testing.T) {
 		}},
 		expanded: map[string]bool{"host:0": true, "host:0:session:$1": true, "host:0:session:$1:window:@1": true},
 		cursor:   1,
-		viewMode: viewTree,
 	}
 
 	_, _, scope, ok := m.selectedMemoryUpdateTarget("pane")
