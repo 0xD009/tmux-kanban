@@ -76,7 +76,6 @@ func (m *model) moveCursor(delta int) {
 	rows := m.rows()
 	if len(rows) == 0 {
 		m.cursor = 0
-		m.resetPreviewScroll()
 		return
 	}
 
@@ -87,11 +86,6 @@ func (m *model) moveCursor(delta int) {
 	if next >= len(rows) {
 		next = len(rows) - 1
 	}
-	if next != m.cursor {
-		m.cursor = next
-		m.resetPreviewScroll()
-		return
-	}
 	m.cursor = next
 }
 
@@ -99,11 +93,14 @@ func (m *model) scrollPreview(direction int) {
 	step := 5
 	if direction < 0 {
 		m.previewScroll += step
+		if n := len(m.preview.lines); n > 0 && m.previewScroll > n {
+			m.previewScroll = n
+		}
 	} else {
 		m.previewScroll -= step
-	}
-	if m.previewScroll < 0 {
-		m.previewScroll = 0
+		if m.previewScroll < 0 {
+			m.previewScroll = 0
+		}
 	}
 }
 

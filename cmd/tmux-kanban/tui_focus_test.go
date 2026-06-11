@@ -75,8 +75,8 @@ func TestMouseFocusRoutesWheelToPanelUnderPointer(t *testing.T) {
 	if m.cursor != 1 {
 		t.Fatalf("cursor after explorer wheel = %d, want 1", m.cursor)
 	}
-	if m.previewScroll != 0 {
-		t.Fatalf("previewScroll after target move = %d, want reset", m.previewScroll)
+	if m.previewScroll != 5 {
+		t.Fatalf("previewScroll after cursor move = %d, want preserved (reset deferred to preview load)", m.previewScroll)
 	}
 }
 

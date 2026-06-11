@@ -452,6 +452,9 @@ func (m *model) ensurePreview() tea.Cmd {
 		return nil
 	}
 
+	if m.preview.key != "" {
+		m.resetPreviewScroll()
+	}
 	host := m.hosts[selected.hostIndex].host
 	if cached, ok := m.cache[key]; ok {
 		m.preview = previewState{
